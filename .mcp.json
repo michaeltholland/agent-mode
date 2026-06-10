@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "netlify": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@netlify/mcp"],
+      "env": {
+        "NETLIFY_AUTH_TOKEN": "nfp_HGMTaTzyuxxrbP1C44WbC7xzfywnXvyo927e"
+      }
+    }
+  }
+}
