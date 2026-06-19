@@ -417,10 +417,10 @@ function drawHelp(){
   ctx.fillStyle=C.panelHi; ctx.fillRect(12,12,80,36); ctx.fillStyle=C.dgrey; ctx.fillRect(12,12,80,3);
   glyph('LT',20,22,3,C.cream); drawText('BACK',36,23,2,C.cream);
   const pg=HELP[clamp(helpPage,0,HELP.length-1)];
-  textCS(pg.title,72,3,C.yellow,C.black);
-  let y=128; for(const ln of pg.lines){ const hl=ln.indexOf('=')>=0||ln.indexOf('GREEN')>=0||ln.indexOf('DRAG')>=0; textC(ln,y,1,hl?C.green:C.cream); y+=18; }
-  for(let i=0;i<HELP.length;i++){ ctx.fillStyle=i===helpPage?C.yellow:C.dgrey; ctx.fillRect(W/2-HELP.length*7+i*14,H-56,9,9); }
-  textCS(helpPage<HELP.length-1?'TAP TO CONTINUE':'TAP TO FINISH',H-34,1,C.white,C.black);
+  textCS(pg.title,68,3,C.yellow,C.black);
+  let y=112; for(const ln of pg.lines){ const hl=ln.indexOf('=')>=0||ln.indexOf('GREEN')>=0||ln.indexOf('DRAG')>=0; textC(ln,y,1.6,hl?C.green:C.cream); y+=23; }
+  for(let i=0;i<HELP.length;i++){ ctx.fillStyle=i===helpPage?C.yellow:C.dgrey; ctx.fillRect(W/2-HELP.length*7+i*14,H-54,9,9); }
+  textCS(helpPage<HELP.length-1?'TAP TO CONTINUE':'TAP TO FINISH',H-32,1.5,C.white,C.black);
 }
 
 // ====================== GAME — GOALIE (twin-stick) ======================
@@ -603,18 +603,19 @@ function g1Draw(){
   if(G1.streak>=2) textCS('COMBO x'+G1.streak,36,1,(frame%8<4?C.gold:C.yellow),C.black);
   if(G1.msgT>0) textCS(G1.msg,250+Math.sin(frame*0.3)*2,3,G1.msgC,C.black);
   if(G1.phase==='foul'){ textCS('FOUL!',150,5,(frame%8<4?C.red:C.yellow),C.black); textCS('CREASE VIOLATION',188,1,C.cream,C.black); textCS('TURNOVER - SHOT LOST',206,1,C.grey,C.black); }
-  if(G1.tut) tutorial('GOALIE','LEFT MOVES YOU - RIGHT AIMS (LIFT=SHOOT)','DONT CROSS THE CREASE = FOUL!');
+  if(G1.tut) tutorial('GOALIE',['MOVE - LEFT STICK','AIM - RIGHT STICK','LIFT THUMB = SHOOT','DONT CROSS THE CREASE!']);
 }
 
 // ====================== TUTORIAL ======================
-function tutorial(title,l1,l2){
-  ctx.fillStyle='rgba(0,0,0,0.74)'; ctx.fillRect(0,0,W,H);
-  ctx.fillStyle=C.panel; ctx.fillRect(20,H/2-86,W-40,172);
-  ctx.fillStyle=C.yellow; ctx.fillRect(20,H/2-86,W-40,4); ctx.fillRect(20,H/2+82,W-40,4);
-  textCS(title,H/2-66,3,C.yellow,C.black);
-  textCS('HOW TO PLAY',H/2-30,1,C.grey,C.black);
-  textCS(l1,H/2-6,1,C.cream,C.black); textCS(l2,H/2+12,1,C.cream,C.black);
-  if(frame%24<14) textCS('TAP TO BEGIN',H/2+52,2,C.green,C.black);
+function tutorial(title,lines){
+  ctx.fillStyle='rgba(0,0,0,0.78)'; ctx.fillRect(0,0,W,H);
+  const ph=86+lines.length*26+36, py=(H-ph)/2;
+  ctx.fillStyle=C.panel; ctx.fillRect(20,py,W-40,ph);
+  ctx.fillStyle=C.yellow; ctx.fillRect(20,py,W-40,4); ctx.fillRect(20,py+ph-4,W-40,4);
+  textCS(title,py+18,3,C.yellow,C.black);
+  textCS('HOW TO PLAY',py+50,1.3,C.grey,C.black);
+  let y=py+82; for(const l of lines){ textCS(l,y,1.7,C.cream,C.black); y+=26; }
+  if(frame%24<14) textCS('TAP TO BEGIN',py+ph-26,2,C.green,C.black);
 }
 
 // ====================== GAME OVER ======================
@@ -789,24 +790,24 @@ function drawSurvey(){
   textCS('RATE THE GAME',62,3,C.yellow,C.black);
   if(survey.sent){
     drawStar(W/2,150,16,true);
-    textC('THANKS FOR THE FEEDBACK!',186,1,C.green);
-    textC('YOUR RATINGS WERE SENT.',210,1,C.cream);
-    textC('TAP TO CONTINUE.',230,1,C.cream);
+    textC('THANKS FOR THE FEEDBACK!',184,1.5,C.green);
+    textC('YOUR RATINGS WERE SENT.',212,1.4,C.cream);
+    textC('TAP TO CONTINUE.',236,1.4,C.cream);
     return;
   }
   for(let row=0;row<4;row++){
-    const y=104+row*52;
-    drawText(SURVEY_Q[row], 20, y-3, 1, C.cream);
+    const cy=104+row*52;
+    textC(SURVEY_Q[row], cy-24, 1.5, C.cream);
     for(let i=0;i<5;i++){ const s=starRect(row,i); drawStar(s.x+13,s.y+13,12, i<survey.r[row]); }
   }
   drawBtn(SV_SUBMIT,false); ctx.fillStyle=C.green; ctx.fillRect(SV_SUBMIT.x,SV_SUBMIT.y,SV_SUBMIT.w,3);
   drawText('SUBMIT FEEDBACK',SV_SUBMIT.x+SV_SUBMIT.w/2-textW('SUBMIT FEEDBACK',2)/2,SV_SUBMIT.y+15,2,C.white);
-  textC('TAP THE STARS TO RATE',H-64,1,C.grey);
-  textC('SENT STRAIGHT TO THE DEV - NO EMAIL',H-48,1,C.grey);
+  textC('TAP THE STARS TO RATE',H-62,1.3,C.grey);
+  textC('SENT TO THE DEV - NO EMAIL',H-44,1.3,C.grey);
 }
 
 // ====================== FIRST-PLAY WELCOME ======================
-const WEL_BTN={x:50,y:H/2+58,w:W-100,h:46};
+const WEL_BTN={x:50,y:H/2+66,w:W-100,h:46};
 function welcomeUpdate(){ let p; while((p=consumeTap())){ try{ localStorage.setItem('lax4_welcome','1'); }catch(e){} welcomed=true; SFX.start(); state=S.MENU; return; } }
 function drawWelcome(){
   vgrad(0,0,W,H,C.skyTop,C.skyBot);
@@ -815,9 +816,9 @@ function drawWelcome(){
   ctx.fillStyle='rgba(0,0,0,0.7)'; ctx.fillRect(0,0,W,H);
   ctx.fillStyle=C.panel; ctx.fillRect(18,H/2-150,W-36,300);
   ctx.fillStyle=C.gold; ctx.fillRect(18,H/2-150,W-36,5); ctx.fillRect(18,H/2+145,W-36,5);
-  textCS('WELCOME!',H/2-126,4,C.yellow,C.black);
-  const lines=['THANKS FOR PLAYING','LAX TAPPER!','','THIS IS THE VERY FIRST','VERSION - BRAND NEW AND','HOT OFF THE FIELD.','','WE LOVE FEEDBACK - TAP THE','FEEDBACK STARS ANYTIME.','','NOW GO HAVE FUN!'];
-  let y=H/2-88; for(const l of lines){ if(l) textCS(l,y,1,C.cream,C.black); y+=16; }
+  textCS('WELCOME!',H/2-130,4,C.yellow,C.black);
+  const lines=['THANKS FOR PLAYING!','','BRAND NEW - THE FIRST','EVER VERSION!','','CUSTOMIZE IN THE LOCKER','ROOM, THEN BURY CORNERS.','','FEEDBACK = TAP THE STARS','HAVE FUN!'];
+  let y=H/2-98; for(const l of lines){ if(l) textCS(l,y,1.5,C.cream,C.black); y+=16; }
   drawBtn(WEL_BTN,false); ctx.fillStyle=C.green; ctx.fillRect(WEL_BTN.x,WEL_BTN.y,WEL_BTN.w,3);
   drawText('PLAY BALL',WEL_BTN.x+(WEL_BTN.w-textW('PLAY BALL',2))/2,WEL_BTN.y+15,2,C.white);
 }
