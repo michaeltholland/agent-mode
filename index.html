@@ -89,7 +89,7 @@ function glyph(name,x,y,s,col){ ctx.fillStyle=col||C.white; const g=FONT[name]; 
 // ====================== INPUT ======================
 let pressQueue=[];
 let pointers={};
-let keys={moveL:false,moveR:false,aimL:false,aimR:false,aimU:false,aimD:false};
+let keys={moveL:false,moveR:false,moveU:false,moveD:false,aimL:false,aimR:false,aimU:false,aimD:false};
 let spaceDown=false;
 // twin virtual joysticks (bottom corners)
 const LJOY={cx:64,cy:470,r:48,k:24};
@@ -128,12 +128,14 @@ canvas.addEventListener('gesturestart',e=>e.preventDefault());
 window.addEventListener('keydown',e=>{
   if(e.code==='Space'||e.code==='Enter'){ e.preventDefault(); if(!spaceDown){ pressQueue.push({x:-1,y:-1}); spaceDown=true; } }
   if(e.code==='KeyA') keys.moveL=true; if(e.code==='KeyD') keys.moveR=true;
+  if(e.code==='KeyW') keys.moveU=true; if(e.code==='KeyS') keys.moveD=true;
   if(e.code==='ArrowLeft') keys.aimL=true; if(e.code==='ArrowRight') keys.aimR=true;
   if(e.code==='ArrowUp') keys.aimU=true; if(e.code==='ArrowDown') keys.aimD=true;
 });
 window.addEventListener('keyup',e=>{
   if(e.code==='Space'||e.code==='Enter') spaceDown=false;
   if(e.code==='KeyA') keys.moveL=false; if(e.code==='KeyD') keys.moveR=false;
+  if(e.code==='KeyW') keys.moveU=false; if(e.code==='KeyS') keys.moveD=false;
   if(e.code==='ArrowLeft') keys.aimL=false; if(e.code==='ArrowRight') keys.aimR=false;
   if(e.code==='ArrowUp') keys.aimU=false; if(e.code==='ArrowDown') keys.aimD=false;
 });
@@ -365,7 +367,7 @@ function drawMenu(){
 let helpPage=0;
 const HELP=[
   {title:'HOW TO PLAY',lines:['SCORE ON A LIVE GOALIE.','HE BLOCKS THE NET WITH','HIS BODY (THE DARK ZONE).','','TWO THUMB-STICKS DOWN','IN THE BOTTOM CORNERS.','','TAP THROUGH FOR CONTROLS.']},
-  {title:'CONTROLS',lines:['LEFT STICK = MOVE YOUR','PLAYER. THIS SWINGS THE','ANGLE - THE KEEPER SLIDES','TO FOLLOW YOU.','','RIGHT STICK = AIM THE','SHOT. LIFT YOUR THUMB','OFF TO FIRE THE BALL.','','(DESKTOP: A/D MOVE,','ARROWS AIM, SPACE SHOOT)']},
+  {title:'CONTROLS',lines:['LEFT STICK = MOVE ANY WAY.','GET AN ANGLE OR CLOSE IN -','BUT THE BLUE CREASE AT THE','GOAL IS OFF-LIMITS.','','RIGHT STICK = AIM THE','SHOT. LIFT YOUR THUMB','OFF TO FIRE THE BALL.','','(DESKTOP: WASD MOVE,','ARROWS AIM, SPACE SHOOT)']},
   {title:'SCORING',lines:['RETICLE GREEN = OPEN,','RED = COVERED, GREY =','OFF THE NET (YOU CAN MISS).','','THE FIVE HOLE OPENS AND','SHUTS - SHOOT IT WHILE THE','GREEN RING IS SHOWING.','','TOP CORNER = 5   LOW = 4','FAR SIDE = 3   FIVE HOLE = 5','10 SHOTS - HE GETS TOUGHER.']}
 ];
 function helpUpdate(){ let p; while((p=consumeTap())){ if(hit(p,{x:12,y:12,w:80,h:36})){ SFX.ui(); state=S.MENU; return; } helpPage++; SFX.ui(); if(helpPage>=HELP.length){ state=S.MENU; return; } } }
@@ -388,6 +390,14 @@ const AIM_EX=NET1.w/2+22, AIM_EY=NET1.h/2+20;   // reaches past the posts so you
 const AIM_MINX=NET1.x-26, AIM_MAXX=NET1.x+NET1.w+26;
 const AIM_MINY=NET1.y-26, AIM_MAXY=NET1.y+NET1.h+30;
 const FH_OPEN=80, FH_SHUT=170;                  // five hole: ~1.3s open, ~2.8s shut
+// the attacker roams the field; the CREASE (half-circle at the goal mouth) is off-limits
+const SH_MINX=38, SH_MAXX=W-38, SH_MINY=232, SH_MAXY=424;
+const CREASE={cx:AIM_CX, cy:NET1.y+NET1.h, r:74};
+function avoidCrease(x,y){
+  const dx=x-CREASE.cx, dy=y-CREASE.cy;       // only the field-side semicircle blocks you
+  if(dy>0){ const dd=Math.hypot(dx,dy); if(dd<CREASE.r){ const k=CREASE.r/(dd||0.001); return {x:CREASE.cx+dx*k, y:CREASE.cy+dy*k}; } }
+  return {x,y};
+}
 function g1Init(){
   G1.shots=10; G1.score=0; G1.goals=0;
   G1.aimX=AIM_CX; G1.aimY=AIM_CY;
@@ -423,9 +433,13 @@ function g1Update(){
   G1.fhT=(G1.fhT+1)%(openLen+FH_SHUT); G1.fhOpen=G1.fhT<openLen;
   if(G1.tut){ if(consumeTap()){ G1.tut=false; resetSticks(); } rReleased=false; return; }
   const gk=G1.gk, mn=NET1.x+gk.bw/2+2, mx=NET1.x+NET1.w-gk.bw/2-2;
-  // LEFT STICK / A-D: move the attacker (this swings the shot angle)
+  // LEFT STICK / WASD: move the attacker in any direction (swings the angle, closes the gap)
   const moveDx = sL.dx + (keys.moveR?1:0) - (keys.moveL?1:0);
-  G1.shooterX = clamp(G1.shooterX + moveDx*2.8, 74, W-74);
+  const moveDy = sL.dy + (keys.moveD?1:0) - (keys.moveU?1:0);
+  const nmx=clamp(G1.shooterX + moveDx*2.8, SH_MINX, SH_MAXX);
+  const nmy=clamp(G1.shooterY + moveDy*2.8, SH_MINY, SH_MAXY);
+  const cp=avoidCrease(nmx,nmy);              // can't step inside the crease
+  G1.shooterX=clamp(cp.x,SH_MINX,SH_MAXX); G1.shooterY=clamp(cp.y,SH_MINY,SH_MAXY);
   // goalie plays the angle: slides toward the side the shooter is on (sharper later)
   gk.idealX = clamp(AIM_CX + (G1.shooterX - W/2)*(0.47+d*0.2), mn, mx);
 
@@ -486,6 +500,11 @@ function g1Draw(){
   ctx.fillStyle=C.grass1; ctx.fillRect(0,150,W,H-150);
   for(let i=0;i<8;i++){ ctx.fillStyle=i%2?C.grass2:C.grass3; ctx.fillRect(0,160+i*20,W,10); }
   ctx.save(); ctx.translate(sh,0);
+  // the crease — chalk half-circle at the goal mouth you can't shoot from inside
+  ctx.fillStyle='rgba(150,190,255,0.10)';
+  ctx.beginPath(); ctx.arc(CREASE.cx,CREASE.cy,CREASE.r,0,Math.PI); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle='rgba(228,240,255,0.75)'; ctx.lineWidth=3;
+  ctx.beginPath(); ctx.arc(CREASE.cx,CREASE.cy,CREASE.r,0,Math.PI); ctx.stroke();
   drawBackstop(NET1); drawGoalFrame(NET1); drawMesh(NET1);
   const gk=G1.gk, fh=g1FiveHole(gk);
   // coverage = his whole vertical column (top to bottom of the net)
@@ -519,7 +538,7 @@ function g1Draw(){
   drawText('SHOTS',W-58,4,1,C.grey); drawText(''+G1.shots,W-30,13,2,C.yellow);
   if(G1.streak>=2) textCS('COMBO x'+G1.streak,32,1,(frame%8<4?C.gold:C.yellow),C.black);
   if(G1.msgT>0) textCS(G1.msg,250+Math.sin(frame*0.3)*2,3,G1.msgC,C.black);
-  if(G1.tut) tutorial('GOALIE','LEFT STICK MOVES YOU','RIGHT STICK AIMS - LIFT TO SHOOT');
+  if(G1.tut) tutorial('GOALIE','LEFT MOVES YOU - RIGHT AIMS (LIFT=SHOOT)','STAY OUT OF THE BLUE CREASE');
 }
 
 // ====================== TUTORIAL ======================
