@@ -218,7 +218,7 @@ function profSave(){ try{ localStorage.setItem('lax4_profile',JSON.stringify(PRO
 function shade(hex,p){ const n=parseInt((hex||'#000').slice(1),16); let r=(n>>16)&255,g=(n>>8)&255,b=n&255;
   r=clamp(Math.round(r+255*p),0,255); g=clamp(Math.round(g+255*p),0,255); b=clamp(Math.round(b+255*p),0,255); return 'rgb('+r+','+g+','+b+')'; }
 const UP_MAX=10;                          // max level per track
-const stickSpd=()=>9.5*(1+0.03*PROFILE.stickLv);          // +3% shot speed / level
+const stickSpd=()=>10.6*(1+0.03*PROFILE.stickLv);         // +3% shot speed / level
 const trainMul=()=>1+0.04*PROFILE.trainLv;                // +4% move & aim speed / level
 function upCost(lv){ return 20*(lv+1); }                  // 20,40,60... coins
 let ACH_DONE={};
@@ -290,10 +290,15 @@ function drawGoalie(x,baseY,bw,bh,lunge,fh,fhOpen){
   // shoulders / arms
   ctx.fillStyle=C.gk; ctx.fillRect(x-bw/2-6, top+6, 7, 22); ctx.fillRect(x+bw/2-1, top+6, 7, 22);
   ctx.fillStyle=C.gkDk; ctx.fillRect(x-bw/2-6, top+24, 7, 4); ctx.fillRect(x+bw/2-1, top+24, 7, 4);
-  // two leg pads; the gap between them is the five hole (filled in when shut)
-  ctx.fillStyle=C.gkDk; ctx.fillRect(x-bw/2, legTop, legW, baseY-legTop); ctx.fillRect(x+gap/2, legTop, legW, baseY-legTop);
-  ctx.fillStyle=C.gk;   ctx.fillRect(x-bw/2, legTop, legW-3, baseY-legTop); ctx.fillRect(x+gap/2+3, legTop, legW-3, baseY-legTop);
-  if(!fhOpen){ ctx.fillStyle=C.gkDk; ctx.fillRect(x-gap/2, legTop, gap, baseY-legTop); ctx.fillStyle=C.gk; ctx.fillRect(x-gap/2+1, legTop, gap-2, baseY-legTop); }
+  // lower body. OPEN = legs apart with a clean gap (the five hole); SHUT = legs together (solid)
+  if(fhOpen){
+    ctx.fillStyle=C.gkDk; ctx.fillRect(x-bw/2, legTop, legW, baseY-legTop); ctx.fillRect(x+gap/2, legTop, legW, baseY-legTop);
+    ctx.fillStyle=C.gk;   ctx.fillRect(x-bw/2+2, legTop, legW-4, baseY-legTop); ctx.fillRect(x+gap/2+2, legTop, legW-4, baseY-legTop);
+  } else {
+    ctx.fillStyle=C.gkDk; ctx.fillRect(x-bw/2, legTop, bw, baseY-legTop);
+    ctx.fillStyle=C.gk;   ctx.fillRect(x-bw/2+2, legTop, bw-4, baseY-legTop);
+    ctx.fillStyle=C.gkDk; ctx.fillRect(x-1, legTop, 2, baseY-legTop);   // thin center seam, not a leg gap
+  }
   // head + helmet
   ctx.fillStyle=C.skin; ctx.fillRect(x-6, top-13, 12, 12);
   ctx.fillStyle=C.helmet; ctx.fillRect(x-8, top-16, 16, 10);
@@ -430,7 +435,7 @@ const AIM_CX=NET1.x+NET1.w/2, AIM_CY=NET1.y+NET1.h/2;
 const AIM_EX=NET1.w/2+22, AIM_EY=NET1.h/2+20;   // reaches past the posts so you can miss
 const AIM_MINX=NET1.x-26, AIM_MAXX=NET1.x+NET1.w+26;
 const AIM_MINY=NET1.y-26, AIM_MAXY=NET1.y+NET1.h+30;
-const FH_OPEN=80, FH_SHUT=170;                  // five hole: ~1.3s open, ~2.8s shut
+const FH_OPEN=80, FH_SHUT=150;                  // five hole opens more often now
 const SHOT_CLOCK=300;                           // 5 seconds at 60fps to get the shot off
 // the attacker roams the field; the CREASE (half-circle at the goal mouth) is off-limits
 const SH_MINX=38, SH_MAXX=W-38, SH_MINY=232, SH_MAXY=424;
@@ -439,7 +444,7 @@ function inCrease(x,y){ return (y-CREASE.cy)>0 && dist(x,y,CREASE.cx,CREASE.cy)<
 function g1Init(){
   G1.shots=10; G1.score=0; G1.goals=0;
   G1.aimX=AIM_CX; G1.aimY=AIM_CY;
-  G1.gk={x:AIM_CX,idealX:AIM_CX,bw:64,bh:134,reach:16,lunge:0};
+  G1.gk={x:AIM_CX,idealX:AIM_CX,bw:60,bh:134,reach:14,lunge:0};
   G1.phase='aim'; G1.ball=null; G1.shake=0; G1.clock=SHOT_CLOCK;
   G1.msg=''; G1.msgT=0; G1.msgC=C.white; G1.tut=true;
   G1.shooterX=W/2; G1.shooterY=330;
@@ -467,8 +472,8 @@ function g1Update(){
   if(G1.msgT>0) G1.msgT--; G1.shake*=0.82;
   // difficulty ramps gently across the 10 shots (0 at shot 1 -> 1 at shot 10)
   const d=clamp((10-G1.shots)/9,0,1);
-  G1.gk.reach=13+d*8;                                  // ~5% easier coverage
-  const openLen=Math.round((FH_OPEN+4)-d*30);          // five hole window 84 -> 54 frames
+  G1.gk.reach=11+d*6;                                  // easier coverage (more open net)
+  const openLen=Math.round((FH_OPEN+24)-d*16);         // five hole open longer: 104 -> 88 frames
   G1.fhT=(G1.fhT+1)%(openLen+FH_SHUT); G1.fhOpen=G1.fhT<openLen;
   if(G1.tut){ if(consumeTap()){ G1.tut=false; resetSticks(); } rReleased=false; return; }
   const gk=G1.gk, mn=NET1.x+gk.bw/2+2, mx=NET1.x+NET1.w-gk.bw/2-2;
@@ -483,7 +488,7 @@ function g1Update(){
     if(G1.phase==='aim' && inCrease(G1.shooterX,G1.shooterY)) g1Foul();
   }
   // goalie plays the angle: slides toward the side the shooter is on (sharper later)
-  gk.idealX = clamp(AIM_CX + (G1.shooterX - W/2)*(0.47+d*0.2), mn, mx);
+  gk.idealX = clamp(AIM_CX + (G1.shooterX - W/2)*(0.42+d*0.15), mn, mx);
 
   if(G1.phase==='aim'){
     gk.x += (gk.idealX-gk.x)*(0.055+d*0.055) + Math.sin(frame*0.05)*(0.4+d*0.5); gk.x=clamp(gk.x,mn,mx);
@@ -510,7 +515,7 @@ function g1Update(){
     }
   } else if(G1.phase==='fly'){
     const b=G1.ball; b.x+=b.vx; b.y+=b.vy; b.t++;
-    const lc=2.2+d*1.65; const dx=b.tx-gk.x; gk.x=clamp(gk.x+clamp(dx,-lc,lc),mn,mx); gk.lunge=clamp(dx*0.4,-6,6);
+    const lc=1.25+d*0.95; const dx=b.tx-gk.x; gk.x=clamp(gk.x+clamp(dx,-lc,lc),mn,mx); gk.lunge=clamp(dx*0.4,-6,6);
     if(b.t>=b.total){
       b.x=b.tx; b.y=b.ty;
       const inNet = b.tx>NET1.x && b.tx<NET1.x+NET1.w && b.ty>NET1.y && b.ty<NET1.y+NET1.h;
