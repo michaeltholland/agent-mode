@@ -89,12 +89,33 @@ function glyph(name,x,y,s,col){ ctx.fillStyle=col||C.white; const g=FONT[name]; 
 // ====================== INPUT ======================
 let pressQueue=[];
 let pointers={};
-let keys={left:false,right:false,up:false,down:false};
+let keys={moveL:false,moveR:false,aimL:false,aimR:false,aimU:false,aimD:false};
 let spaceDown=false;
+// twin virtual joysticks (bottom corners)
+const LJOY={cx:64,cy:470,r:48,k:24};
+const RJOY={cx:W-64,cy:470,r:48,k:24};
+let sL={id:null,dx:0,dy:0};
+let sR={id:null,dx:0,dy:0};
+let rReleased=false;           // edge flag: right stick was just let go
+function inJoy(j,x,y){ return Math.hypot(x-j.cx,y-j.cy)<=j.r+28; }
+function setJoy(j,s,x,y){ let dx=(x-j.cx)/j.r, dy=(y-j.cy)/j.r; const m=Math.hypot(dx,dy); if(m>1){ dx/=m; dy/=m; } s.dx=dx; s.dy=dy; }
+function resetSticks(){ sL.id=null; sL.dx=0; sL.dy=0; sR.id=null; sR.dx=0; sR.dy=0; rReleased=false; }
 function pt(clientX,clientY){ const r=canvas.getBoundingClientRect(); return {x:(clientX-r.left)/(r.width/W), y:(clientY-r.top)/(r.height/H)}; }
-function down(id,x,y){ unlockAudio(); pointers[id]={x,y}; pressQueue.push({x,y}); }
-function move(id,x,y){ if(pointers[id]) pointers[id]={x,y}; }
-function up(id){ delete pointers[id]; }
+function down(id,x,y){
+  unlockAudio(); pointers[id]={x,y}; pressQueue.push({x,y});
+  if(sL.id===null && inJoy(LJOY,x,y)){ sL.id=id; setJoy(LJOY,sL,x,y); }
+  else if(sR.id===null && inJoy(RJOY,x,y)){ sR.id=id; setJoy(RJOY,sR,x,y); }
+}
+function move(id,x,y){
+  if(pointers[id]) pointers[id]={x,y};
+  if(id===sL.id) setJoy(LJOY,sL,x,y);
+  if(id===sR.id) setJoy(RJOY,sR,x,y);
+}
+function up(id){
+  delete pointers[id];
+  if(id===sL.id){ sL.id=null; sL.dx=0; sL.dy=0; }
+  if(id===sR.id){ sR.id=null; rReleased=true; }   // keep dx,dy so the game can shoot where it pointed
+}
 canvas.addEventListener('mousedown',e=>{ e.preventDefault(); const p=pt(e.clientX,e.clientY); down('m',p.x,p.y); });
 window.addEventListener('mousemove',e=>{ if(pointers['m']){ const p=pt(e.clientX,e.clientY); move('m',p.x,p.y); } });
 window.addEventListener('mouseup',()=>up('m'));
@@ -106,17 +127,15 @@ canvas.addEventListener('dblclick',e=>e.preventDefault());
 canvas.addEventListener('gesturestart',e=>e.preventDefault());
 window.addEventListener('keydown',e=>{
   if(e.code==='Space'||e.code==='Enter'){ e.preventDefault(); if(!spaceDown){ pressQueue.push({x:-1,y:-1}); spaceDown=true; } }
-  if(e.code==='ArrowLeft'||e.code==='KeyA') keys.left=true;
-  if(e.code==='ArrowRight'||e.code==='KeyD') keys.right=true;
-  if(e.code==='ArrowUp'||e.code==='KeyW') keys.up=true;
-  if(e.code==='ArrowDown'||e.code==='KeyS') keys.down=true;
+  if(e.code==='KeyA') keys.moveL=true; if(e.code==='KeyD') keys.moveR=true;
+  if(e.code==='ArrowLeft') keys.aimL=true; if(e.code==='ArrowRight') keys.aimR=true;
+  if(e.code==='ArrowUp') keys.aimU=true; if(e.code==='ArrowDown') keys.aimD=true;
 });
 window.addEventListener('keyup',e=>{
   if(e.code==='Space'||e.code==='Enter') spaceDown=false;
-  if(e.code==='ArrowLeft'||e.code==='KeyA') keys.left=false;
-  if(e.code==='ArrowRight'||e.code==='KeyD') keys.right=false;
-  if(e.code==='ArrowUp'||e.code==='KeyW') keys.up=false;
-  if(e.code==='ArrowDown'||e.code==='KeyS') keys.down=false;
+  if(e.code==='KeyA') keys.moveL=false; if(e.code==='KeyD') keys.moveR=false;
+  if(e.code==='ArrowLeft') keys.aimL=false; if(e.code==='ArrowRight') keys.aimR=false;
+  if(e.code==='ArrowUp') keys.aimU=false; if(e.code==='ArrowDown') keys.aimD=false;
 });
 function consumeTap(){ return pressQueue.length?pressQueue.shift():null; }
 function hit(p,r){ return p && p.x>=r.x && p.x<=r.x+r.w && p.y>=r.y && p.y<=r.y+r.h; }
@@ -213,6 +232,17 @@ function drawBtn(r,active){
   ctx.fillStyle=active?C.white:C.dgrey; ctx.fillRect(r.x,r.y,r.w,3);
   ctx.fillRect(r.x,r.y,3,r.h); ctx.fillRect(r.x+r.w-3,r.y,3,r.h); ctx.fillRect(r.x,r.y+r.h-3,r.w,3);
 }
+// virtual joystick: base ring + knob offset by stick vector
+function drawJoy(j,s,label,active,accent){
+  ctx.fillStyle='rgba(16,22,38,0.82)'; ctx.beginPath(); ctx.arc(j.cx,j.cy,j.r,0,7); ctx.fill();
+  ctx.strokeStyle=active?(accent||C.yellow):C.dgrey; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(j.cx,j.cy,j.r,0,7); ctx.stroke();
+  ctx.strokeStyle='rgba(255,255,255,0.10)'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(j.cx-j.r+6,j.cy); ctx.lineTo(j.cx+j.r-6,j.cy); ctx.moveTo(j.cx,j.cy-j.r+6); ctx.lineTo(j.cx,j.cy+j.r-6); ctx.stroke();
+  const kx=j.cx+s.dx*(j.r-j.k), ky=j.cy+s.dy*(j.r-j.k);
+  ctx.fillStyle=active?C.btnA:C.btn; ctx.beginPath(); ctx.arc(kx,ky,j.k,0,7); ctx.fill();
+  ctx.fillStyle=active?C.white:C.grey; ctx.beginPath(); ctx.arc(kx,ky,j.k-6,0,7); ctx.fill();
+  drawText(label, j.cx-textW(label,1)/2, j.cy+j.r+7, 1, active?C.cream:C.grey);
+}
 
 // ====================== STATE ======================
 const S={MENU:0,HELP:1,G1:2,OVER:3};
@@ -229,8 +259,8 @@ function menuUpdate(){
     if(p.x<0){ MENU_BTNS[menuSel].go(); SFX.start(); return; }
     for(let i=0;i<MENU_BTNS.length;i++){ if(hit(p,btnRect(i))){ menuSel=i; SFX.start(); MENU_BTNS[i].go(); return; } }
   }
-  if(keys.up){ menuSel=(menuSel+1)%2; keys.up=false; }
-  if(keys.down){ menuSel=(menuSel+1)%2; keys.down=false; }
+  if(keys.aimU){ menuSel=(menuSel+1)%2; keys.aimU=false; }
+  if(keys.aimD){ menuSel=(menuSel+1)%2; keys.aimD=false; }
 }
 function drawMenu(){
   vgrad(0,0,W,H,C.skyTop,C.skyBot);
@@ -259,9 +289,9 @@ function drawMenu(){
 // ====================== HELP ======================
 let helpPage=0;
 const HELP=[
-  {title:'HOW TO PLAY',lines:['SCORE ON A LIVE GOALIE.','HE BLOCKS THE NET WITH','HIS BODY (THE DARK ZONE).','','SHOOT INTO THE OPEN','SPACE TO SCORE.','','TAP THROUGH FOR CONTROLS.']},
-  {title:'CONTROLS',lines:['DRAG ON THE NET TO MOVE','YOUR AIM AROUND.','','OR USE THE < > ^ v PADS','AT THE BOTTOM.','','TAP THE BIG SHOOT BAR','(OR SPACEBAR) TO FIRE.']},
-  {title:'SCORING',lines:['THE RETICLE IS GREEN WHEN','THE NET IS OPEN, RED WHEN','THE KEEPER HAS IT COVERED.','','BEAT HIM HIGH OR WIDE -','HE LUNGES AT YOUR SHOT.','','TOP CORNER = 5 PTS','EDGES = 3   CLOSE = 1','YOU GET 10 SHOTS.']}
+  {title:'HOW TO PLAY',lines:['SCORE ON A LIVE GOALIE.','HE BLOCKS THE NET WITH','HIS BODY (THE DARK ZONE).','','TWO THUMB-STICKS DOWN','IN THE BOTTOM CORNERS.','','TAP THROUGH FOR CONTROLS.']},
+  {title:'CONTROLS',lines:['LEFT STICK = MOVE YOUR','PLAYER. THIS SWINGS THE','ANGLE - THE KEEPER SLIDES','TO FOLLOW YOU.','','RIGHT STICK = AIM THE','SHOT. LIFT YOUR THUMB','OFF TO FIRE THE BALL.','','(DESKTOP: A/D MOVE,','ARROWS AIM, SPACE SHOOT)']},
+  {title:'SCORING',lines:['THE RING IS GREEN WHEN','THE NET IS OPEN, RED WHEN','THE KEEPER HAS IT COVERED.','','PULL HIM ONE WAY, THEN','SHOOT HIGH OR FAR SIDE.','','TOP CORNER = 5 PTS','EDGES = 3   CLOSE = 1','YOU GET 10 SHOTS.']}
 ];
 function helpUpdate(){ let p; while((p=consumeTap())){ if(hit(p,{x:12,y:12,w:80,h:36})){ SFX.ui(); state=S.MENU; return; } helpPage++; SFX.ui(); if(helpPage>=HELP.length){ state=S.MENU; return; } } }
 function drawHelp(){
@@ -275,57 +305,59 @@ function drawHelp(){
   textCS(helpPage<HELP.length-1?'TAP TO CONTINUE':'TAP TO FINISH',H-34,1,C.white,C.black);
 }
 
-// ====================== GAME — GOALIE ======================
+// ====================== GAME — GOALIE (twin-stick) ======================
 const G1={};
 const NET1={x:60,y:64,w:180,h:150};
-const PLAY_BOTTOM=414;                 // drag-to-aim works above this line
-const MOVE_L={x:12,y:420,w:64,h:48}, MOVE_R={x:80,y:420,w:64,h:48};
-const AIM_U={x:160,y:420,w:60,h:48}, AIM_D={x:224,y:420,w:60,h:48};
-const SHOOT_BTN={x:12,y:476,w:W-24,h:52};
+const AIM_CX=NET1.x+NET1.w/2, AIM_CY=NET1.y+NET1.h/2;
+const AIM_EX=NET1.w/2-16, AIM_EY=NET1.h/2-16;
 function g1Init(){
   G1.shots=10; G1.score=0; G1.goals=0;
-  G1.aimX=NET1.x+NET1.w/2; G1.aimY=NET1.y+NET1.h*0.5;
-  G1.gk={x:NET1.x+NET1.w/2,dir:1,bw:50,bh:104,reach:14,lunge:0,speed:1.4};
+  G1.aimX=AIM_CX; G1.aimY=AIM_CY;
+  G1.gk={x:AIM_CX,idealX:AIM_CX,bw:50,bh:104,reach:14,lunge:0};
   G1.phase='aim'; G1.ball=null; G1.shake=0;
   G1.msg=''; G1.msgT=0; G1.msgC=C.white; G1.tut=true;
-  G1.shooterX=W/2; G1.shooterY=326;
+  G1.shooterX=W/2; G1.shooterY=330;
+  resetSticks();
 }
 function g1Covered(tx,ty,gk){
   const topReach=NET1.y+NET1.h-gk.bh-gk.reach;
   return (Math.abs(tx-gk.x) < gk.bw/2+gk.reach) && (ty > topReach);
 }
-function g1Patrol(spd){ const gk=G1.gk, mn=NET1.x+gk.bw/2+2, mx=NET1.x+NET1.w-gk.bw/2-2;
-  gk.x+=gk.dir*spd; if(gk.x<mn){ gk.x=mn; gk.dir=1; } if(gk.x>mx){ gk.x=mx; gk.dir=-1; } }
 function g1NextShot(){ if(G1.shots<=0){ endGame(G1.score); return; } G1.phase='aim'; G1.ball=null; }
 function g1Fire(){
-  const sx=G1.shooterX, sy=G1.shooterY-44, tx=G1.aimX, ty=G1.aimY, d=dist(sx,sy,tx,ty), spd=9.5;
+  const sx=G1.shooterX, sy=G1.shooterY-44, tx=G1.aimX, ty=G1.aimY, d=dist(sx,sy,tx,ty)||1, spd=9.5;
   G1.ball={x:sx,y:sy,vx:(tx-sx)/d*spd,vy:(ty-sy)/d*spd,tx,ty,t:0,total:Math.max(8,d/spd)};
-  G1.phase='fly'; G1.shots--; G1.gk.lunge=0; SFX.shoot();
+  G1.phase='fly'; G1.shots--; G1.gk.lunge=0; sR.dx=0; sR.dy=0; SFX.shoot();
 }
 function g1Update(){
   if(G1.msgT>0) G1.msgT--; G1.shake*=0.82;
-  G1.gk.speed=1.4+Math.min(1.8,G1.goals*0.14);
-  if(G1.tut){ if(consumeTap()) G1.tut=false; return; }
+  if(G1.tut){ if(consumeTap()){ G1.tut=false; resetSticks(); } rReleased=false; return; }
+  const gk=G1.gk, mn=NET1.x+gk.bw/2+2, mx=NET1.x+NET1.w-gk.bw/2-2;
+  // LEFT STICK / A-D: move the attacker (this swings the shot angle)
+  const moveDx = sL.dx + (keys.moveR?1:0) - (keys.moveL?1:0);
+  G1.shooterX = clamp(G1.shooterX + moveDx*2.8, 74, W-74);
+  // goalie plays the angle: slides toward the side the shooter is on
+  gk.idealX = clamp(AIM_CX + (G1.shooterX - W/2)*0.55, mn, mx);
+
   if(G1.phase==='aim'){
-    g1Patrol(G1.gk.speed);
-    // drag-to-aim: any finger held in the play area sets the aim point
-    for(const id in pointers){ const q=pointers[id]; if(q.y<PLAY_BOTTOM){ G1.aimX=clamp(q.x,NET1.x+12,NET1.x+NET1.w-12); G1.aimY=clamp(q.y,NET1.y+12,NET1.y+NET1.h-12); } }
-    // pad nudges (and keyboard)
-    if(held(MOVE_L)||keys.left)  G1.aimX-=2.6;
-    if(held(MOVE_R)||keys.right) G1.aimX+=2.6;
-    if(held(AIM_U)||keys.up)     G1.aimY-=2.4;
-    if(held(AIM_D)||keys.down)   G1.aimY+=2.4;
-    G1.aimX=clamp(G1.aimX, NET1.x+12, NET1.x+NET1.w-12);
-    G1.aimY=clamp(G1.aimY, NET1.y+12, NET1.y+NET1.h-12);
-    let p; while((p=consumeTap())){ if(p.x<0||hit(p,SHOOT_BTN)){ g1Fire(); break; } }
+    gk.x += (gk.idealX-gk.x)*0.07 + Math.sin(frame*0.05)*0.5; gk.x=clamp(gk.x,mn,mx);
+    // RIGHT STICK aims; release to shoot
+    if(sR.id!==null){
+      G1.aimX = clamp(AIM_CX + sR.dx*AIM_EX, NET1.x+12, NET1.x+NET1.w-12);
+      G1.aimY = clamp(AIM_CY + sR.dy*AIM_EY, NET1.y+12, NET1.y+NET1.h-12);
+    } else if(keys.aimL||keys.aimR||keys.aimU||keys.aimD){
+      G1.aimX = clamp(G1.aimX + ((keys.aimR?1:0)-(keys.aimL?1:0))*3, NET1.x+12, NET1.x+NET1.w-12);
+      G1.aimY = clamp(G1.aimY + ((keys.aimD?1:0)-(keys.aimU?1:0))*3, NET1.y+12, NET1.y+NET1.h-12);
+    }
+    let fire=rReleased;
+    let p; while((p=consumeTap())){ if(p.x<0) fire=true; }   // space = shoot; drain the rest
+    if(fire) g1Fire();
   } else if(G1.phase==='fly'){
     const b=G1.ball; b.x+=b.vx; b.y+=b.vy; b.t++;
-    g1Patrol(G1.gk.speed*0.6);
-    const dx=b.tx-G1.gk.x; G1.gk.x+=clamp(dx,-2.4,2.4); G1.gk.lunge=clamp(dx*0.4,-6,6);
-    G1.gk.x=clamp(G1.gk.x,NET1.x+G1.gk.bw/2+2,NET1.x+NET1.w-G1.gk.bw/2-2);
+    const dx=b.tx-gk.x; gk.x=clamp(gk.x+clamp(dx,-2.6,2.6),mn,mx); gk.lunge=clamp(dx*0.4,-6,6);
     if(b.t>=b.total){
       b.x=b.tx; b.y=b.ty;
-      if(g1Covered(b.tx,b.ty,G1.gk)){
+      if(g1Covered(b.tx,b.ty,gk)){
         G1.msg='SAVE!'; G1.msgC=C.red; G1.msgT=64; G1.shake=6; SFX.save();
         b.vx=-b.vx*0.3; b.vy=2.6; b.bounce=true;
       } else {
@@ -342,7 +374,7 @@ function g1Update(){
     const b=G1.ball; if(b&&b.bounce){ b.x+=b.vx; b.y+=b.vy; b.vy+=0.3; }
     if(--G1.resT<=0) g1NextShot();
   }
-  G1.shooterX=lerp(40,W-40,(G1.aimX-(NET1.x+12))/(NET1.w-24));
+  rReleased=false;   // only the aim phase consumes the release
   updateParts();
 }
 function g1Draw(){
@@ -367,20 +399,19 @@ function g1Draw(){
   drawParts();
   drawShooter(G1.shooterX,G1.shooterY,G1.phase==='fly'&&frame%4<2);
   ctx.restore();
-  // controls
-  drawBtn(MOVE_L,held(MOVE_L)||keys.left); glyph('LT',MOVE_L.x+22,MOVE_L.y+15,4,C.cream);
-  drawBtn(MOVE_R,held(MOVE_R)||keys.right); glyph('GT',MOVE_R.x+22,MOVE_R.y+15,4,C.cream);
-  drawBtn(AIM_U,held(AIM_U)||keys.up); glyph('UP',AIM_U.x+20,AIM_U.y+15,4,C.cream);
-  drawBtn(AIM_D,held(AIM_D)||keys.down); glyph('DN',AIM_D.x+20,AIM_D.y+15,4,C.cream);
-  drawBtn(SHOOT_BTN,false); drawText('SHOOT',SHOOT_BTN.x+(SHOOT_BTN.w-textW('SHOOT',3))/2,SHOOT_BTN.y+18,3,C.yellow);
-  drawText('MOVE',MOVE_L.x+24,MOVE_L.y-12,1,C.grey); drawText('AIM',AIM_U.x+28,AIM_U.y-12,1,C.grey);
+  // twin joysticks
+  const la=sL.id!==null||keys.moveL||keys.moveR;
+  const ra=sR.id!==null||keys.aimL||keys.aimR||keys.aimU||keys.aimD;
+  drawJoy(LJOY,sL,'MOVE',la,C.blue);
+  drawJoy(RJOY,sR,'AIM / RELEASE',ra,C.green);
+  if(sR.id!==null && G1.phase==='aim'){ textCS('RELEASE TO SHOOT',H-150,1,frame%10<6?C.green:C.cream,C.black); }
   // HUD
   ctx.fillStyle=C.panel; ctx.fillRect(0,0,W,26); ctx.fillStyle=C.gold; ctx.fillRect(0,24,W,2);
   drawText('SCORE',8,4,1,C.grey); drawText(''+G1.score,8,13,2,C.white);
   drawText('GOALS',W/2-16,4,1,C.grey); drawText(G1.goals+'/10',W/2-16,13,2,C.green);
   drawText('SHOTS',W-58,4,1,C.grey); drawText(''+G1.shots,W-30,13,2,C.yellow);
   if(G1.msgT>0) textCS(G1.msg,250+Math.sin(frame*0.3)*2,3,G1.msgC,C.black);
-  if(G1.tut) tutorial('GOALIE','DRAG ON THE NET TO AIM','SHOOT WHEN THE RING IS GREEN');
+  if(G1.tut) tutorial('GOALIE','LEFT STICK MOVES YOU','RIGHT STICK AIMS - LIFT TO SHOOT');
 }
 
 // ====================== TUTORIAL ======================
