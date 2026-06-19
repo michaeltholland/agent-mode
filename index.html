@@ -358,8 +358,8 @@ function g1Update(){
   if(G1.msgT>0) G1.msgT--; G1.shake*=0.82;
   // difficulty ramps gently across the 10 shots (0 at shot 1 -> 1 at shot 10)
   const d=clamp((10-G1.shots)/9,0,1);
-  G1.gk.reach=14+d*9;                                  // wider coverage later
-  const openLen=Math.round(FH_OPEN-d*34);              // five hole window 80 -> 46 frames
+  G1.gk.reach=13+d*8;                                  // ~5% easier coverage
+  const openLen=Math.round((FH_OPEN+4)-d*30);          // five hole window 84 -> 54 frames
   G1.fhT=(G1.fhT+1)%(openLen+FH_SHUT); G1.fhOpen=G1.fhT<openLen;
   if(G1.tut){ if(consumeTap()){ G1.tut=false; resetSticks(); } rReleased=false; return; }
   const gk=G1.gk, mn=NET1.x+gk.bw/2+2, mx=NET1.x+NET1.w-gk.bw/2-2;
@@ -367,10 +367,10 @@ function g1Update(){
   const moveDx = sL.dx + (keys.moveR?1:0) - (keys.moveL?1:0);
   G1.shooterX = clamp(G1.shooterX + moveDx*2.8, 74, W-74);
   // goalie plays the angle: slides toward the side the shooter is on (sharper later)
-  gk.idealX = clamp(AIM_CX + (G1.shooterX - W/2)*(0.5+d*0.22), mn, mx);
+  gk.idealX = clamp(AIM_CX + (G1.shooterX - W/2)*(0.47+d*0.2), mn, mx);
 
   if(G1.phase==='aim'){
-    gk.x += (gk.idealX-gk.x)*(0.06+d*0.06) + Math.sin(frame*0.05)*(0.4+d*0.6); gk.x=clamp(gk.x,mn,mx);
+    gk.x += (gk.idealX-gk.x)*(0.055+d*0.055) + Math.sin(frame*0.05)*(0.4+d*0.5); gk.x=clamp(gk.x,mn,mx);
     // RIGHT STICK aims; release to shoot
     if(sR.id!==null){
       G1.aimX = clamp(AIM_CX + sR.dx*AIM_EX, AIM_MINX, AIM_MAXX);
@@ -384,7 +384,7 @@ function g1Update(){
     if(fire) g1Fire();
   } else if(G1.phase==='fly'){
     const b=G1.ball; b.x+=b.vx; b.y+=b.vy; b.t++;
-    const lc=2.3+d*1.8; const dx=b.tx-gk.x; gk.x=clamp(gk.x+clamp(dx,-lc,lc),mn,mx); gk.lunge=clamp(dx*0.4,-6,6);
+    const lc=2.2+d*1.65; const dx=b.tx-gk.x; gk.x=clamp(gk.x+clamp(dx,-lc,lc),mn,mx); gk.lunge=clamp(dx*0.4,-6,6);
     if(b.t>=b.total){
       b.x=b.tx; b.y=b.ty;
       const inNet = b.tx>NET1.x && b.tx<NET1.x+NET1.w && b.ty>NET1.y && b.ty<NET1.y+NET1.h;
