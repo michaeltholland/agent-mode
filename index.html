@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>LAX TAPPER</title>
+<style>
+  :root { --bg:#0b1021; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body {
+    margin:0; padding:0; height:100%;
+    background:var(--bg);
+    overflow:hidden;
+    font-family:'Courier New', monospace;
+    touch-action:manipulation;
+  }
+  #wrap {
+    width:100%; height:100%;
+    display:flex; align-items:center; justify-content:center;
+  }
+  canvas {
+    image-rendering:pixelated;
+    image-rendering:crisp-edges;
+    background:#000;
+    max-width:100%; max-height:100%;
+    box-shadow:0 0 0 4px #1a2140, 0 0 40px #000 inset;
+    cursor:pointer;
+  }
+  #hint {
+    position:fixed; bottom:6px; left:0; right:0;
+    text-align:center; color:#3a4a7a; font-size:11px; letter-spacing:1px;
+    pointer-events:none;
+  }
+</style>
+</head>
+<body>
+<div id="wrap"><canvas id="c" width="240" height="320"></canvas></div>
+<div id="hint">TAP / CLICK / SPACE</div>
+<script>
+(function(){
+"use strict";
+
+// ---------- Setup ----------
+const W = 240, H = 320;
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+ctx.imageSmoothingEnabled = false;
+
+// Scale canvas to fit screen while keeping pixel ratio crisp
+function resize(){
+  const pad = 16;
+  const aw = window.innerWidth - pad, ah = window.innerHeight - pad;
+  const scale = Math.max(1, Math.floor(Math.min(aw / W, ah / H)));
+  canvas.style.width = (W * scale) + 'px';
+  canvas.style.height = (H * scale) + 'px';
+}
+window.addEventListener('resize', resize);
+resize();
+
+// ---------- 8-bit palette ----------
+const COL = {
+  sky:'#1d2b53', sky2:'#29366f', grass:'#0c5c2e', grass2:'#0a4a26',
+  white:'#fff1e8', cream:'#ffccaa', red:'#ff004d', orange:'#ffa300',
+  yellow:'#ffec27', green:'#00e436', blue:'#29adff', dark:'#1d2b53',
+  black:'#000814', net:'#83769c', wood:'#ab5236', wood2:'#7a3b27',
+  pink:'#ff77a8', grey:'#5f574f', lgrey:'#c2c3c7'
+};
+
+// ---------- Tiny 5x5 pixel font ----------
+const FONT = {
+ 'A':["01110","10001","11111","10001","10001"],
+ 'B':["11110","10001","11110","10001","11110"],
+ 'C':["01111","10000","10000","10000","01111"],
+ 'D':["11110","10001","10001","10001","11110"],
+ 'E':["11111","10000","11110","10000","11111"],
+ 'F':["11111","10000","11110","10000","10000"],
+ 'G':["01111","10000","10011","10001","01111"],
+ 'H':["10001","10001","11111","10001","10001"],
+ 'I':["11111","00100","00100","00100","11111"],
+ 'J':["00111","00010","00010","10010","01100"],
+ 'K':["10001","10010","11100","10010","10001"],
+ 'L':["10000","10000","10000","10000","11111"],
+ 'M':["10001","11011","10101","10001","10001"],
+ 'N':["10001","11001","10101","10011","10001"],
+ 'O':["01110","10001","10001","10001","01110"],
+ 'P':["11110","10001","11110","10000","10000"],
+ 'Q':["01110","10001","10101","10010","01101"],
+ 'R':["11110","10001","11110","10010","10001"],
+ 'S':["01111","10000","01110","00001","11110"],
+ 'T':["11111","00100","00100","00100","00100"],
+ 'U':["10001","10001","10001","10001","01110"],
+ 'V':["10001","10001","10001","01010","00100"],
+ 'W':["10001","10001","10101","11011","10001"],
+ 'X':["10001","01010","00100","01010","10001"],
+ 'Y':["10001","01010","00100","00100","00100"],
+ 'Z':["11111","00010","00100","01000","11111"],
+ '0':["01110","10011","10101","11001","01110"],
+ '1':["00100","01100","00100","00100","01110"],
+ '2':["11110","00001","01110","10000","11111"],
+ '3':["11110","00001","01110","00001","11110"],
+ '4':["10010","10010","11111","00010","00010"],
+ '5':["11111","10000","11110","00001","11110"],
+ '6':["01111","10000","11110","10001","01110"],
+ '7':["11111","00010","00100","01000","01000"],
+ '8':["01110","10001","01110","10001","01110"],
+ '9':["01110","10001","01111","00001","11110"],
+ '!':["00100","00100","00100","00000","00100"],
+ '?':["01110","10001","00110","00000","00100"],
+ ':':["00000","00100","00000","00100","00000"],
+ '.':["00000","00000","00000","00000","00100"],
+ '-':["00000","00000","11111","00000","00000"],
+ '+':["00000","00100","01110","00100","00000"],
+ '/':["00001","00010","00100","01000","10000"],
+ ' ':["00000","00000","00000","00000","00000"]
+};
+
+function drawText(str, x, y, scale, color){
+  scale = scale || 1; color = color || COL.white;
+  ctx.fillStyle = color;
+  let cx = x;
+  for(const ch of str.toUpperCase()){
+    const g = FONT[ch] || FONT['?'];
+    for(let r=0;r<5;r++){
+      const row = g[r];
+      for(let cI=0;cI<5;cI++){
+        if(row[cI]==='1') ctx.fillRect(cx + cI*scale, y + r*scale, scale, scale);
+      }
+    }
+    cx += 6*scale;
+  }
+  return cx;
+}
+function textWidth(str, scale){ return str.length * 6 * scale; }
+function drawTextC(str, y, scale, color){
+  drawText(str, (W - textWidth(str,scale))/2, y, scale, color);
+}
+
+// ---------- Input ----------
+let tap = false;           // edge-triggered: true for one frame on press
+let pressActive = false;
+function press(){ if(!pressActive){ tap = true; pressActive = true; } }
+function release(){ pressActive = false; }
+canvas.addEventListener('mousedown', e=>{ e.preventDefault(); press(); });
+window.addEventListener('mouseup', release);
+canvas.addEventListener('touchstart', e=>{ e.preventDefault(); press(); }, {passive:false});
+window.addEventListener('touchend', e=>{ e.preventDefault(); release(); }, {passive:false});
+window.addEventListener('keydown', e=>{
+  if(e.code==='Space' || e.code==='Enter'){ e.preventDefault(); press(); }
+});
+window.addEventListener('keyup', e=>{
+  if(e.code==='Space' || e.code==='Enter') release();
+});
+function consumeTap(){ const t = tap; tap = false; return t; }
+
+// ---------- Sound (WebAudio beeps) ----------
+let actx = null;
+function ac(){ if(!actx){ try{ actx = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} } return actx; }
+function beep(freq, dur, type, vol){
+  const a = ac(); if(!a) return;
+  try{
+    const o = a.createOscillator(), g = a.createGain();
+    o.type = type||'square'; o.frequency.value = freq;
+    g.gain.value = vol||0.06;
+    o.connect(g); g.connect(a.destination);
+    const t = a.currentTime;
+    o.start(t);
+    g.gain.setValueAtTime(g.gain.value, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + (dur||0.1));
+    o.stop(t + (dur||0.1));
+  }catch(e){}
+}
+const SFX = {
+  shoot:()=>beep(660,0.08,'square',0.05),
+  goal:()=>{ beep(523,0.09); setTimeout(()=>beep(659,0.09),90); setTimeout(()=>beep(784,0.16),180); },
+  save:()=>beep(140,0.18,'sawtooth',0.06),
+  roll:()=>beep(330,0.06,'triangle',0.04),
+  score:()=>{ beep(440,0.07); setTimeout(()=>beep(660,0.1),70); },
+  select:()=>beep(880,0.05,'square',0.05),
+  bonus:()=>{ beep(784,0.08); setTimeout(()=>beep(988,0.12),80); }
+};
+
+// ---------- Helpers ----------
+function rnd(a,b){ return a + Math.random()*(b-a); }
+function clamp(v,a,b){ return v<a?a:(v>b?b:v); }
+const HI = { g1:0, g2:0 };
+try{
+  HI.g1 = parseInt(localStorage.getItem('lax_hi1')||'0',10)||0;
+  HI.g2 = parseInt(localStorage.getItem('lax_hi2')||'0',10)||0;
+}catch(e){}
+function saveHi(){
+  try{ localStorage.setItem('lax_hi1',HI.g1); localStorage.setItem('lax_hi2',HI.g2); }catch(e){}
+}
+
+// ---------- Sprites ----------
+// Lacrosse player: simple stick figure with a crosse
+function drawPlayer(x, y, flash){
+  const body = flash ? COL.yellow : COL.blue;
+  // head
+  ctx.fillStyle = COL.cream; ctx.fillRect(x-2, y-14, 5, 5);
+  // helmet stripe
+  ctx.fillStyle = body; ctx.fillRect(x-2, y-14, 5, 2);
+  // body
+  ctx.fillStyle = body; ctx.fillRect(x-3, y-9, 7, 9);
+  // legs
+  ctx.fillStyle = COL.dark; ctx.fillRect(x-3, y, 3, 5); ctx.fillRect(x+1, y, 3, 5);
+}
+// crosse head (net pocket) at tip position
+function drawCrosse(x1,y1,x2,y2,hasBall){
+  // shaft
+  ctx.strokeStyle = COL.lgrey; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+  // head
+  ctx.fillStyle = COL.orange; ctx.fillRect(x2-3, y2-3, 6, 6);
+  ctx.fillStyle = COL.net; ctx.fillRect(x2-2, y2-2, 4, 4);
+  if(hasBall){ ctx.fillStyle = COL.white; ctx.fillRect(x2-1,y2-1,3,3); }
+}
+function drawBall(x,y,r){
+  r = r||2;
+  ctx.fillStyle = COL.white;
+  ctx.fillRect(x-r, y-r+1, r*2, r*2-2);
+  ctx.fillRect(x-r+1, y-r, r*2-2, r*2);
+}
+function drawGoalie(x, y, w, color){
+  color = color || COL.red;
+  // pads body
+  ctx.fillStyle = color; ctx.fillRect(x - w/2, y, w, 14);
+  ctx.fillStyle = COL.cream; ctx.fillRect(x-2, y-6, 5, 6); // head
+  ctx.fillStyle = COL.white; ctx.fillRect(x-2, y-6, 5, 2); // helmet
+  // stick
+  ctx.fillStyle = COL.lgrey; ctx.fillRect(x + w/2 - 1, y-8, 2, 22);
+  ctx.fillStyle = COL.net; ctx.fillRect(x + w/2 - 4, y-10, 6, 6);
+}
+
+// ---------- Goal / Net drawing ----------
+function drawNet(x, y, w, h){
+  ctx.strokeStyle = COL.white; ctx.lineWidth = 2;
+  ctx.strokeRect(x, y, w, h);
+  ctx.strokeStyle = COL.net; ctx.lineWidth = 1;
+  ctx.globalAlpha = 0.55;
+  for(let i=x+4;i<x+w;i+=6){ ctx.beginPath(); ctx.moveTo(i,y); ctx.lineTo(i,y+h); ctx.stroke(); }
+  for(let j=y+4;j<y+h;j+=6){ ctx.beginPath(); ctx.moveTo(x,j); ctx.lineTo(x+w,j); ctx.stroke(); }
+  ctx.globalAlpha = 1;
+}
+
+// =====================================================
+//  GAME STATE MACHINE
+// =====================================================
+const S = { MENU:0, G1:1, G2:2, OVER:3 };
+let state = S.MENU;
+let menuSel = 0;          // 0 = goalie, 1 = skee
+let overGame = 1;
+let overScore = 0, overBest = 0, overNewBest = false;
+let frame = 0;
+
+// particles for celebration
+let parts = [];
+function spawnParts(x,y,n,colors){
+  for(let i=0;i<n;i++){
+    parts.push({x,y,vx:rnd(-1.6,1.6),vy:rnd(-2.4,-0.3),life:rnd(20,40),
+      c:colors[(Math.random()*colors.length)|0]});
+  }
+}
+function updateParts(){
+  for(let i=parts.length-1;i>=0;i--){
+    const p = parts[i];
+    p.x+=p.vx; p.y+=p.vy; p.vy+=0.12; p.life--;
+    if(p.life<=0) parts.splice(i,1);
+  }
+}
+function drawParts(){
+  for(const p of parts){ ctx.fillStyle = p.c; ctx.fillRect(p.x|0, p.y|0, 2, 2); }
+}
+
+// =====================================================
+//  GAME 1 — SCORE ON THE GOALIE
+// =====================================================
+const G1 = {};
+function g1Init(){
+  G1.shotsLeft = 10;
+  G1.score = 0;
+  G1.goalX = 30; G1.goalY = 40; G1.goalW = 180; G1.goalH = 60;
+  G1.goalieX = W/2; G1.goalieW = 34;
+  G1.goalieDir = 1;
+  G1.goalieSpeed = 1.1;
+  G1.aimX = W/2; G1.aimDir = 1; G1.aimSpeed = 2.2;
+  G1.phase = 'aim';   // aim -> fly -> result
+  G1.ball = null;
+  G1.msg = ''; G1.msgT = 0; G1.msgColor = COL.white;
+  G1.playerX = W/2; G1.playerY = H-26;
+  G1.shake = 0;
+  G1.level = 1;
+}
+function g1NextShot(){
+  if(G1.shotsLeft <= 0){
+    endGame(1, G1.score);
+    return;
+  }
+  G1.phase = 'aim';
+  G1.ball = null;
+  // ramp difficulty: goalie a touch faster each few goals
+  G1.goalieSpeed = 1.0 + Math.min(1.6, G1.score*0.18);
+  G1.goalieW = clamp(34 - Math.floor(G1.score/3)*2, 22, 34);
+}
+function g1Update(){
+  G1.shake *= 0.8;
+  // goalie patrols the mouth
+  const minX = G1.goalX + G1.goalieW/2 + 2;
+  const maxX = G1.goalX + G1.goalW - G1.goalieW/2 - 2;
+  G1.goalieX += G1.goalieDir * G1.goalieSpeed;
+  if(G1.goalieX < minX){ G1.goalieX = minX; G1.goalieDir = 1; }
+  if(G1.goalieX > maxX){ G1.goalieX = maxX; G1.goalieDir = -1; }
+
+  if(G1.msgT>0) G1.msgT--;
+
+  if(G1.phase === 'aim'){
+    // aim reticle sweeps across the goal line
+    G1.aimX += G1.aimDir * G1.aimSpeed;
+    const aMin = G1.goalX + 8, aMax = G1.goalX + G1.goalW - 8;
+    if(G1.aimX < aMin){ G1.aimX = aMin; G1.aimDir = 1; }
+    if(G1.aimX > aMax){ G1.aimX = aMax; G1.aimDir = -1; }
+    if(consumeTap()){
+      // fire ball from player toward aim point at goal line
+      const tx = G1.aimX, ty = G1.goalY + G1.goalH - 6;
+      const sx = G1.playerX, sy = G1.playerY - 10;
+      const dx = tx - sx, dy = ty - sy;
+      const dist = Math.hypot(dx,dy);
+      const spd = 6.5;
+      G1.ball = { x:sx, y:sy, vx:dx/dist*spd, vy:dy/dist*spd, tx, ty, target:false };
+      G1.phase = 'fly';
+      G1.shotsLeft--;
+      SFX.shoot();
+    }
+  } else if(G1.phase === 'fly'){
+    const b = G1.ball;
+    b.x += b.vx; b.y += b.vy;
+    // reached goal line?
+    if(b.y <= G1.goalY + G1.goalH - 6){
+      b.y = G1.goalY + G1.goalH - 6;
+      // did goalie block? check overlap with goalie box
+      const gx = G1.goalieX, half = G1.goalieW/2;
+      const blocked = b.x > gx-half-2 && b.x < gx+half+2;
+      // also must be within goal mouth
+      const inGoal = b.x > G1.goalX+4 && b.x < G1.goalX+G1.goalW-4;
+      if(blocked || !inGoal){
+        G1.msg = 'SAVE!'; G1.msgColor = COL.red; G1.msgT = 60;
+        G1.shake = 4; SFX.save();
+        b.vx = -b.vx*0.4; b.vy = 2; // bounce out
+      } else {
+        G1.score++; G1.msg = 'GOAL!'; G1.msgColor = COL.green; G1.msgT = 70;
+        spawnParts(b.x, b.y, 18, [COL.green,COL.yellow,COL.white]);
+        SFX.goal();
+        b.vy = 1.5; b.vx *= 0.3;
+      }
+      G1.phase = 'result';
+      G1.resultT = 45;
+    }
+  } else if(G1.phase === 'result'){
+    if(G1.ball){ G1.ball.x += G1.ball.vx; G1.ball.y += G1.ball.vy; G1.ball.vy += 0.2; }
+    if(--G1.resultT <= 0){ g1NextShot(); }
+  }
+  updateParts();
+}
+function g1Draw(){
+  // field background
+  const sh = (G1.shake*((frame%2)?1:-1))|0;
+  ctx.save(); ctx.translate(sh,0);
+  ctx.fillStyle = COL.sky; ctx.fillRect(-4,0,W+8,110);
+  ctx.fillStyle = COL.grass; ctx.fillRect(-4,100,W+8,H);
+  ctx.fillStyle = COL.grass2;
+  for(let y=110;y<H;y+=16){ ctx.fillRect(-4,y,W+8,8); }
+  // crease arc
+  ctx.strokeStyle = COL.white; ctx.lineWidth=1; ctx.globalAlpha=0.5;
+  ctx.beginPath(); ctx.arc(W/2, G1.goalY+G1.goalH+4, 46, 0, Math.PI); ctx.stroke();
+  ctx.globalAlpha=1;
+
+  // goal net
+  drawNet(G1.goalX, G1.goalY, G1.goalW, G1.goalH);
+  // goalie
+  drawGoalie(G1.goalieX, G1.goalY + G1.goalH - 14, G1.goalieW);
+
+  // aim guide
+  if(G1.phase === 'aim'){
+    const ax = G1.aimX, ay = G1.goalY + G1.goalH - 6;
+    ctx.strokeStyle = COL.yellow; ctx.lineWidth=1; ctx.globalAlpha=0.6;
+    ctx.setLineDash([3,3]);
+    ctx.beginPath(); ctx.moveTo(G1.playerX, G1.playerY-10); ctx.lineTo(ax,ay); ctx.stroke();
+    ctx.setLineDash([]); ctx.globalAlpha=1;
+    // target marker
+    ctx.fillStyle = (frame%10<5)?COL.yellow:COL.orange;
+    ctx.fillRect(ax-3, ay-1, 6, 2); ctx.fillRect(ax-1, ay-3, 2, 6);
+  }
+
+  // ball
+  if(G1.ball) drawBall(G1.ball.x, G1.ball.y, 2);
+
+  // player + crosse
+  const tipx = (G1.phase==='aim')? G1.aimX : (G1.ball?G1.ball.x:G1.playerX);
+  drawPlayer(G1.playerX, G1.playerY, G1.phase==='fly'&&frame%4<2);
+  const cx = G1.playerX + 6, cy = G1.playerY - 8;
+  const ang = Math.atan2((G1.goalY+30)-cy, (G1.phase==='aim'?G1.aimX:G1.playerX)-cx);
+  drawCrosse(cx, cy, cx + Math.cos(ang)*10, cy + Math.sin(ang)*10, G1.phase==='aim');
+
+  drawParts();
+  ctx.restore();
+
+  // HUD
+  ctx.fillStyle = COL.black; ctx.globalAlpha=0.5; ctx.fillRect(0,0,W,14); ctx.globalAlpha=1;
+  drawText('GOALS '+G1.score, 4, 4, 1, COL.white);
+  drawText('SHOTS '+G1.shotsLeft, W-72, 4, 1, COL.yellow);
+
+  // message
+  if(G1.msgT>0){
+    const sc = 3;
+    const y = 150 + Math.sin(frame*0.3)*2;
+    drawTextC(G1.msg, y, sc, G1.msgColor);
+  }
+}
+
+// =====================================================
+//  GAME 2 — LACROSSE SKEE-BALL
+// =====================================================
+const G2 = {};
+// scoring zones up the lane (top = far = more points)
+const ZONES = [
+  {y:46,  pts:100, w:24, c:COL.pink},
+  {y:70,  pts:50,  w:34, c:COL.orange},
+  {y:96,  pts:40,  w:50, c:COL.yellow},
+  {y:128, pts:30,  w:70, c:COL.green},
+  {y:166, pts:20,  w:96, c:COL.blue},
+  {y:210, pts:10,  w:130,c:COL.lgrey}
+];
+function g2Init(){
+  G2.ballsLeft = 9;
+  G2.score = 0;
+  G2.phase = 'power';   // power -> roll -> result
+  G2.power = 0; G2.pdir = 1; G2.pspeed = 0.022;
+  G2.ball = null;
+  G2.laneX = W/2; G2.laneTop = 36; G2.laneBot = 250;
+  G2.playerX = W/2; G2.playerY = H-26;
+  G2.msg=''; G2.msgT=0; G2.msgColor=COL.white;
+  G2.lastZone = -1;
+  G2.combo = 0;
+}
+function g2NextBall(){
+  if(G2.ballsLeft<=0){ endGame(2, G2.score); return; }
+  G2.phase='power'; G2.power=0; G2.pdir=1; G2.ball=null;
+}
+function zoneForY(y){
+  // find nearest zone whose band contains y; bands centered at zone.y
+  let best=null, bestd=1e9;
+  for(let i=0;i<ZONES.length;i++){
+    const d = Math.abs(ZONES[i].y - y);
+    if(d<bestd){ bestd=d; best=i; }
+  }
+  return best;
+}
+function g2Update(){
+  if(G2.msgT>0) G2.msgT--;
+  if(G2.phase==='power'){
+    G2.power += G2.pdir*G2.pspeed;
+    if(G2.power>=1){ G2.power=1; G2.pdir=-1; }
+    if(G2.power<=0){ G2.power=0; G2.pdir=1; }
+    if(consumeTap()){
+      // launch: power maps to how far up the lane the ball travels
+      const minY = ZONES[0].y - 6;          // furthest reachable
+      const maxY = G2.laneBot - 10;         // nearest (weak shot)
+      // a touch of randomness so it's skill + luck
+      const p = clamp(G2.power + rnd(-0.03,0.03), 0, 1);
+      const targetY = maxY - (maxY - minY) * p;
+      G2.ball = { x:G2.laneX, y:G2.laneBot, targetY, vy:-4.2, settled:false };
+      G2.phase='roll';
+      SFX.roll();
+    }
+  } else if(G2.phase==='roll'){
+    const b = G2.ball;
+    b.y += b.vy;
+    b.vy *= 0.965;            // friction slows the roll
+    b.vy = Math.min(b.vy, -0.15);
+    if(b.y <= b.targetY || b.vy > -0.2){
+      b.y = Math.max(b.y, b.targetY);
+      // settle into nearest zone
+      const zi = zoneForY(b.y);
+      const z = ZONES[zi];
+      b.y = z.y;
+      let pts = z.pts;
+      G2.lastZone = zi;
+      // combo bonus for repeat high zones
+      if(zi<=1){ G2.combo++; if(G2.combo>=2){ pts += 50; SFX.bonus(); } }
+      else G2.combo = 0;
+      G2.score += pts;
+      G2.msg = '+'+pts; G2.msgColor = z.c; G2.msgT = 50;
+      spawnParts(b.x, b.y, 14, [z.c, COL.white, COL.yellow]);
+      SFX.score();
+      G2.phase='result'; G2.resultT=40;
+      G2.ballsLeft--;
+    }
+  } else if(G2.phase==='result'){
+    if(--G2.resultT<=0) g2NextBall();
+  }
+  updateParts();
+}
+function g2Draw(){
+  // background
+  ctx.fillStyle = COL.sky; ctx.fillRect(0,0,W,H);
+  ctx.fillStyle = COL.sky2; ctx.fillRect(0,0,W,30);
+
+  // lane (perspective-ish trapezoid) — wooden skee lane
+  const topW = 60, botW = 150;
+  const tx = G2.laneX, bx = G2.laneX;
+  ctx.fillStyle = COL.wood2;
+  ctx.beginPath();
+  ctx.moveTo(tx-topW/2, G2.laneTop);
+  ctx.lineTo(tx+topW/2, G2.laneTop);
+  ctx.lineTo(bx+botW/2, G2.laneBot);
+  ctx.lineTo(bx-botW/2, G2.laneBot);
+  ctx.closePath(); ctx.fill();
+  // lane planks
+  ctx.strokeStyle = COL.wood; ctx.lineWidth=1; ctx.globalAlpha=0.6;
+  for(let i=1;i<6;i++){
+    const f=i/6;
+    const ly = G2.laneTop + (G2.laneBot-G2.laneTop)*f;
+    const lw = topW + (botW-topW)*f;
+    ctx.beginPath(); ctx.moveTo(tx-lw/2,ly); ctx.lineTo(tx+lw/2,ly); ctx.stroke();
+  }
+  ctx.globalAlpha=1;
+
+  // scoring zones (target rings)
+  for(let i=0;i<ZONES.length;i++){
+    const z = ZONES[i];
+    const ringW = z.w; const rh = 8;
+    ctx.fillStyle = z.c;
+    ctx.fillRect(tx - ringW/2, z.y - rh/2, ringW, rh);
+    ctx.fillStyle = COL.black;
+    ctx.fillRect(tx - ringW/2 + 2, z.y - rh/2 + 2, ringW-4, rh-4);
+    drawText(''+z.pts, tx - textWidth(''+z.pts,1)/2, z.y-2, 1, z.c);
+  }
+
+  // ball
+  if(G2.ball) drawBall(G2.ball.x, G2.ball.y, 3);
+
+  // player + crosse at bottom
+  drawPlayer(G2.playerX, G2.playerY, G2.phase==='roll'&&frame%4<2);
+  drawCrosse(G2.playerX+6, G2.playerY-8, G2.playerX+8, G2.playerY-18, G2.phase==='power');
+
+  drawParts();
+
+  // power meter
+  if(G2.phase==='power'){
+    const mx=20, my=H-60, mw=12, mh=70;
+    ctx.fillStyle = COL.black; ctx.fillRect(mx-2,my-2,mw+4,mh+4);
+    ctx.fillStyle = COL.dark; ctx.fillRect(mx,my,mw,mh);
+    const fillH = mh*G2.power;
+    // gradient blocks
+    const blocks = 10;
+    for(let i=0;i<blocks;i++){
+      if(i/blocks < G2.power){
+        const t=i/blocks;
+        ctx.fillStyle = t>0.8?COL.red:(t>0.5?COL.orange:COL.green);
+        const by = my+mh - (i+1)*(mh/blocks);
+        ctx.fillRect(mx+1, by+1, mw-2, mh/blocks-1);
+      }
+    }
+    drawText('PWR', mx-4, my-12, 1, COL.white);
+  }
+
+  // HUD
+  ctx.fillStyle = COL.black; ctx.globalAlpha=0.5; ctx.fillRect(0,0,W,14); ctx.globalAlpha=1;
+  drawText('SCORE '+G2.score, 4, 4, 1, COL.white);
+  drawText('BALL '+G2.ballsLeft, W-60, 4, 1, COL.yellow);
+
+  if(G2.msgT>0){
+    drawTextC(G2.msg, 140 + Math.sin(frame*0.3)*2, 3, G2.msgColor);
+  }
+}
+
+// =====================================================
+//  MENU + GAME OVER
+// =====================================================
+function drawMenu(){
+  ctx.fillStyle = COL.black; ctx.fillRect(0,0,W,H);
+  // animated field stripes
+  ctx.fillStyle = COL.grass2;
+  for(let y=0;y<H;y+=24){ ctx.fillRect(0,(y+(frame*0.4)%24),W,12); }
+  ctx.globalAlpha=0.25; ctx.fillStyle=COL.grass; ctx.fillRect(0,0,W,H); ctx.globalAlpha=1;
+
+  // title
+  drawTextC('LACROSSE', 36, 3, COL.yellow);
+  drawTextC('TAPPER', 64, 4, COL.orange);
+
+  // bouncing ball + crosse mascot
+  const by = 108 + Math.sin(frame*0.12)*6;
+  drawCrosse(W/2-26, by+8, W/2-14, by, true);
+  drawBall(W/2-14, by, 3);
+
+  // menu options
+  const opts = [
+    {t:'1  GOALIE SHOOTOUT', hi:HI.g1},
+    {t:'2  SKEE LACROSSE',   hi:HI.g2}
+  ];
+  const baseY = 150;
+  for(let i=0;i<opts.length;i++){
+    const y = baseY + i*44;
+    const sel = (i===menuSel);
+    if(sel){
+      ctx.fillStyle = COL.dark;
+      ctx.fillRect(20, y-6, W-40, 30);
+      ctx.strokeStyle = COL.yellow; ctx.lineWidth=1;
+      ctx.strokeRect(20, y-6, W-40, 30);
+      // pointer
+      ctx.fillStyle = (frame%12<6)?COL.yellow:COL.orange;
+      ctx.fillRect(10, y+5, 6, 6);
+    }
+    drawTextC(opts[i].t, y, 1, sel?COL.white:COL.lgrey);
+    drawTextC('BEST '+opts[i].hi, y+12, 1, sel?COL.green:COL.grey);
+  }
+
+  drawTextC('TAP TO SWITCH', 252, 1, COL.lgrey);
+  drawTextC('HOLD/2X TO START', 266, 1, COL.lgrey);
+
+  // tap cycles selection, double behavior: we use a small timing trick below
+}
+
+let menuTapTime = -999;
+function menuUpdate(){
+  if(consumeTap()){
+    const now = frame;
+    if(now - menuTapTime < 18){
+      // double tap -> start selected game
+      SFX.select();
+      if(menuSel===0){ g1Init(); state=S.G1; }
+      else { g2Init(); state=S.G2; }
+      menuTapTime = -999;
+    } else {
+      // single tap -> toggle selection
+      menuSel = (menuSel+1)%2;
+      SFX.select();
+      menuTapTime = now;
+    }
+  }
+}
+
+function endGame(game, score){
+  overGame = game; overScore = score;
+  overBest = game===1?HI.g1:HI.g2;
+  overNewBest = false;
+  if(score > overBest){
+    overNewBest = true;
+    if(game===1) HI.g1 = score; else HI.g2 = score;
+    overBest = score; saveHi();
+    spawnParts(W/2, 120, 30, [COL.yellow,COL.green,COL.pink,COL.white]);
+  }
+  state = S.OVER;
+  overT = 0;
+}
+let overT = 0;
+function overUpdate(){
+  overT++;
+  updateParts();
+  if(overT>30 && consumeTap()){
+    SFX.select();
+    state = S.MENU;
+  }
+}
+function drawOver(){
+  ctx.fillStyle = COL.black; ctx.fillRect(0,0,W,H);
+  ctx.fillStyle = COL.grass2;
+  for(let y=0;y<H;y+=24){ ctx.fillRect(0,y,W,12); }
+  ctx.globalAlpha=0.2; ctx.fillStyle=COL.grass; ctx.fillRect(0,0,W,H); ctx.globalAlpha=1;
+
+  drawTextC(overGame===1?'GOALIE':'SKEE LAX', 50, 2, COL.lgrey);
+  drawTextC('GAME OVER', 74, 3, COL.red);
+
+  drawTextC('SCORE', 120, 2, COL.white);
+  drawTextC(''+overScore, 144, 4, COL.yellow);
+
+  if(overNewBest){
+    if(frame%16<10) drawTextC('NEW BEST!', 190, 2, COL.green);
+  } else {
+    drawTextC('BEST '+overBest, 192, 1, COL.lgrey);
+  }
+  drawParts();
+
+  if(overT>30 && frame%20<12)
+    drawTextC('TAP TO CONTINUE', 260, 1, COL.white);
+}
+
+// =====================================================
+//  MAIN LOOP
+// =====================================================
+function loop(){
+  frame++;
+  // clear
+  ctx.fillStyle = '#000'; ctx.fillRect(0,0,W,H);
+
+  if(state===S.MENU){ menuUpdate(); drawMenu(); }
+  else if(state===S.G1){ g1Update(); g1Draw(); }
+  else if(state===S.G2){ g2Update(); g2Draw(); }
+  else if(state===S.OVER){ overUpdate(); drawOver(); }
+
+  // subtle scanline overlay for 8-bit CRT vibe
+  ctx.globalAlpha = 0.06; ctx.fillStyle = '#000';
+  for(let y=0;y<H;y+=2) ctx.fillRect(0,y,W,1);
+  ctx.globalAlpha = 1;
+
+  requestAnimationFrame(loop);
+}
+loop();
+
+})();
+</script>
+</body>
+</html>
