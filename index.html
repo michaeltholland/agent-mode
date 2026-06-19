@@ -98,7 +98,7 @@ let sL={id:null,dx:0,dy:0};
 let sR={id:null,dx:0,dy:0};
 let rReleased=false;           // edge flag: right stick was just let go
 function inJoy(j,x,y){ return Math.hypot(x-j.cx,y-j.cy)<=j.r+28; }
-function setJoy(j,s,x,y){ let dx=(x-j.cx)/j.r, dy=(y-j.cy)/j.r; const m=Math.hypot(dx,dy); if(m>1){ dx/=m; dy/=m; } s.dx=dx; s.dy=dy; }
+function setJoy(j,s,x,y){ s.dx=clamp((x-j.cx)/j.r,-1,1); s.dy=clamp((y-j.cy)/j.r,-1,1); }
 function resetSticks(){ sL.id=null; sL.dx=0; sL.dy=0; sR.id=null; sR.dx=0; sR.dy=0; rReleased=false; }
 function pt(clientX,clientY){ const r=canvas.getBoundingClientRect(); return {x:(clientX-r.left)/(r.width/W), y:(clientY-r.top)/(r.height/H)}; }
 function down(id,x,y){
@@ -152,6 +152,7 @@ const SFX={
   shoot:()=>{ beep(720,0.06,'square',0.05); setTimeout(()=>beep(420,0.05),40); },
   goal:()=>{ beep(523,0.08); setTimeout(()=>beep(659,0.08),80); setTimeout(()=>beep(880,0.16),160); },
   save:()=>beep(120,0.22,'sawtooth',0.06),
+  wide:()=>beep(180,0.16,'sine',0.05),
   big:()=>{ beep(660,0.07); setTimeout(()=>beep(880,0.07),70); setTimeout(()=>beep(1175,0.16),140); },
   ui:()=>beep(840,0.05,'square',0.05),
   start:()=>{ beep(523,0.07); setTimeout(()=>beep(784,0.12),80); }
@@ -182,7 +183,7 @@ function drawShooter(x,y,wind){
   ctx.fillStyle=C.black; ctx.fillRect(x-7,y+13,7,3); ctx.fillRect(x+1,y+13,7,3);
   ctx.fillStyle=C.jersey; ctx.fillRect(x-9,y-16,18,18);
   ctx.fillStyle=C.jerseyHi; ctx.fillRect(x-9,y-16,18,3);
-  drawText('99',x-6,y-11,1,C.num);
+  drawText('15',x-6,y-11,1,C.num);
   ctx.fillStyle=C.skin; ctx.fillRect(x-4,y-25,8,9);
   ctx.fillStyle=C.helmet; ctx.fillRect(x-6,y-27,12,8);
   ctx.fillStyle=C.helmetSh; ctx.fillRect(x-6,y-21,12,2);
@@ -192,7 +193,7 @@ function drawShooter(x,y,wind){
   ctx.strokeStyle=C.shaft; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(x+13+sw,y-20); ctx.lineTo(x+24+sw,y-42); ctx.stroke();
   ctx.fillStyle=C.orange; ctx.fillRect(x+22+sw,y-50,8,8); ctx.fillStyle=C.crosse; ctx.fillRect(x+23+sw,y-49,6,6);
 }
-function drawGoalie(x,baseY,bw,bh,lunge,fh){
+function drawGoalie(x,baseY,bw,bh,lunge,fh,fhOpen){
   const top=baseY-bh, upperH=Math.round(bh*0.52), legTop=top+upperH, gap=18, legW=(bw-gap)/2;
   // chest / upper body (solid, covers high)
   ctx.fillStyle=C.gkDk; ctx.fillRect(x-bw/2, top, bw, upperH+4);
@@ -203,9 +204,10 @@ function drawGoalie(x,baseY,bw,bh,lunge,fh){
   // shoulders / arms
   ctx.fillStyle=C.gk; ctx.fillRect(x-bw/2-6, top+6, 7, 22); ctx.fillRect(x+bw/2-1, top+6, 7, 22);
   ctx.fillStyle=C.gkDk; ctx.fillRect(x-bw/2-6, top+24, 7, 4); ctx.fillRect(x+bw/2-1, top+24, 7, 4);
-  // two leg pads with a gap (the five hole) between them
+  // two leg pads; the gap between them is the five hole (filled in when shut)
   ctx.fillStyle=C.gkDk; ctx.fillRect(x-bw/2, legTop, legW, baseY-legTop); ctx.fillRect(x+gap/2, legTop, legW, baseY-legTop);
   ctx.fillStyle=C.gk;   ctx.fillRect(x-bw/2, legTop, legW-3, baseY-legTop); ctx.fillRect(x+gap/2+3, legTop, legW-3, baseY-legTop);
+  if(!fhOpen){ ctx.fillStyle=C.gkDk; ctx.fillRect(x-gap/2, legTop, gap, baseY-legTop); ctx.fillStyle=C.gk; ctx.fillRect(x-gap/2+1, legTop, gap-2, baseY-legTop); }
   // head + helmet
   ctx.fillStyle=C.skin; ctx.fillRect(x-6, top-13, 12, 12);
   ctx.fillStyle=C.helmet; ctx.fillRect(x-8, top-16, 16, 10);
@@ -215,9 +217,12 @@ function drawGoalie(x,baseY,bw,bh,lunge,fh){
   const lx=lunge||0;
   ctx.strokeStyle=C.shaft; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(x+bw/2, top+6); ctx.lineTo(x+lx, top-30); ctx.stroke();
   ctx.fillStyle=C.orange; ctx.fillRect(x-7+lx, top-40, 14, 12); ctx.fillStyle=C.crosse; ctx.fillRect(x-6+lx, top-39, 12, 10);
-  // the five hole opening (faint target between the legs)
-  if(fh){ ctx.fillStyle='#0c1a10'; ctx.beginPath(); ctx.arc(fh.x,fh.y,fh.r,0,7); ctx.fill();
-    ctx.strokeStyle='rgba(120,220,150,0.55)'; ctx.lineWidth=1; ctx.beginPath(); ctx.arc(fh.x,fh.y,fh.r,0,7); ctx.stroke(); }
+  // the five hole: open = dark gap with green ring; shut = faint red hint
+  if(fh){
+    if(fhOpen){ ctx.fillStyle='#0c1a10'; ctx.beginPath(); ctx.arc(fh.x,fh.y,fh.r,0,7); ctx.fill();
+      ctx.strokeStyle='rgba(120,235,150,0.8)'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(fh.x,fh.y,fh.r,0,7); ctx.stroke(); }
+    else { ctx.strokeStyle='rgba(255,70,90,0.30)'; ctx.lineWidth=1; ctx.beginPath(); ctx.arc(fh.x,fh.y,fh.r,0,7); ctx.stroke(); }
+  }
 }
 function drawBackstop(r){
   ctx.strokeStyle='rgba(255,255,255,0.18)'; ctx.lineWidth=1;
@@ -302,7 +307,7 @@ let helpPage=0;
 const HELP=[
   {title:'HOW TO PLAY',lines:['SCORE ON A LIVE GOALIE.','HE BLOCKS THE NET WITH','HIS BODY (THE DARK ZONE).','','TWO THUMB-STICKS DOWN','IN THE BOTTOM CORNERS.','','TAP THROUGH FOR CONTROLS.']},
   {title:'CONTROLS',lines:['LEFT STICK = MOVE YOUR','PLAYER. THIS SWINGS THE','ANGLE - THE KEEPER SLIDES','TO FOLLOW YOU.','','RIGHT STICK = AIM THE','SHOT. LIFT YOUR THUMB','OFF TO FIRE THE BALL.','','(DESKTOP: A/D MOVE,','ARROWS AIM, SPACE SHOOT)']},
-  {title:'SCORING',lines:['THE RING IS GREEN WHEN','THE NET IS OPEN, RED WHEN','HIS BODY COVERS IT.','','SHOOT AROUND HIM TO THE','CORNERS - OR THREAD THE','FIVE HOLE BETWEEN HIS LEGS','','TOP CORNER = 5   LOW = 4','FAR SIDE = 3','FIVE HOLE = 5   10 SHOTS.']}
+  {title:'SCORING',lines:['RETICLE GREEN = OPEN,','RED = COVERED, GREY =','OFF THE NET (YOU CAN MISS).','','THE FIVE HOLE OPENS AND','SHUTS - SHOOT IT WHILE THE','GREEN RING IS SHOWING.','','TOP CORNER = 5   LOW = 4','FAR SIDE = 3   FIVE HOLE = 5','10 SHOTS.']}
 ];
 function helpUpdate(){ let p; while((p=consumeTap())){ if(hit(p,{x:12,y:12,w:80,h:36})){ SFX.ui(); state=S.MENU; return; } helpPage++; SFX.ui(); if(helpPage>=HELP.length){ state=S.MENU; return; } } }
 function drawHelp(){
@@ -320,7 +325,10 @@ function drawHelp(){
 const G1={};
 const NET1={x:60,y:64,w:180,h:150};
 const AIM_CX=NET1.x+NET1.w/2, AIM_CY=NET1.y+NET1.h/2;
-const AIM_EX=NET1.w/2-6, AIM_EY=NET1.h/2-6;   // aim spans the whole net
+const AIM_EX=NET1.w/2+22, AIM_EY=NET1.h/2+20;   // reaches past the posts so you can miss
+const AIM_MINX=NET1.x-26, AIM_MAXX=NET1.x+NET1.w+26;
+const AIM_MINY=NET1.y-26, AIM_MAXY=NET1.y+NET1.h+30;
+const FH_OPEN=80, FH_SHUT=170;                  // five hole: ~1.3s open, ~2.8s shut
 function g1Init(){
   G1.shots=10; G1.score=0; G1.goals=0;
   G1.aimX=AIM_CX; G1.aimY=AIM_CY;
@@ -328,6 +336,7 @@ function g1Init(){
   G1.phase='aim'; G1.ball=null; G1.shake=0;
   G1.msg=''; G1.msgT=0; G1.msgC=C.white; G1.tut=true;
   G1.shooterX=W/2; G1.shooterY=330;
+  G1.fhT=(Math.random()*(FH_OPEN+FH_SHUT))|0; G1.fhOpen=false;
   resetSticks();
 }
 // the gap between the goalie's legs (five hole)
@@ -336,7 +345,7 @@ function g1Covered(tx,ty,gk){
   // his body+stick cover his whole vertical column (top to bottom)...
   if(Math.abs(tx-gk.x) >= gk.bw/2+gk.reach) return false;   // around him = open
   const fh=g1FiveHole(gk);
-  if(dist(tx,ty,fh.x,fh.y) < fh.r) return false;            // ...except through the legs
+  if(G1.fhOpen && dist(tx,ty,fh.x,fh.y) < fh.r) return false; // ...except through the legs WHEN OPEN
   return true;
 }
 function g1NextShot(){ if(G1.shots<=0){ endGame(G1.score); return; } G1.phase='aim'; G1.ball=null; }
@@ -347,6 +356,7 @@ function g1Fire(){
 }
 function g1Update(){
   if(G1.msgT>0) G1.msgT--; G1.shake*=0.82;
+  G1.fhT=(G1.fhT+1)%(FH_OPEN+FH_SHUT); G1.fhOpen=G1.fhT<FH_OPEN;   // five hole opens & shuts
   if(G1.tut){ if(consumeTap()){ G1.tut=false; resetSticks(); } rReleased=false; return; }
   const gk=G1.gk, mn=NET1.x+gk.bw/2+2, mx=NET1.x+NET1.w-gk.bw/2-2;
   // LEFT STICK / A-D: move the attacker (this swings the shot angle)
@@ -359,11 +369,11 @@ function g1Update(){
     gk.x += (gk.idealX-gk.x)*0.07 + Math.sin(frame*0.05)*0.5; gk.x=clamp(gk.x,mn,mx);
     // RIGHT STICK aims; release to shoot
     if(sR.id!==null){
-      G1.aimX = clamp(AIM_CX + sR.dx*AIM_EX, NET1.x+12, NET1.x+NET1.w-12);
-      G1.aimY = clamp(AIM_CY + sR.dy*AIM_EY, NET1.y+12, NET1.y+NET1.h-12);
+      G1.aimX = clamp(AIM_CX + sR.dx*AIM_EX, AIM_MINX, AIM_MAXX);
+      G1.aimY = clamp(AIM_CY + sR.dy*AIM_EY, AIM_MINY, AIM_MAXY);
     } else if(keys.aimL||keys.aimR||keys.aimU||keys.aimD){
-      G1.aimX = clamp(G1.aimX + ((keys.aimR?1:0)-(keys.aimL?1:0))*3, NET1.x+12, NET1.x+NET1.w-12);
-      G1.aimY = clamp(G1.aimY + ((keys.aimD?1:0)-(keys.aimU?1:0))*3, NET1.y+12, NET1.y+NET1.h-12);
+      G1.aimX = clamp(G1.aimX + ((keys.aimR?1:0)-(keys.aimL?1:0))*3.4, AIM_MINX, AIM_MAXX);
+      G1.aimY = clamp(G1.aimY + ((keys.aimD?1:0)-(keys.aimU?1:0))*3.4, AIM_MINY, AIM_MAXY);
     }
     let fire=rReleased;
     let p; while((p=consumeTap())){ if(p.x<0) fire=true; }   // space = shoot; drain the rest
@@ -373,7 +383,11 @@ function g1Update(){
     const dx=b.tx-gk.x; gk.x=clamp(gk.x+clamp(dx,-2.6,2.6),mn,mx); gk.lunge=clamp(dx*0.4,-6,6);
     if(b.t>=b.total){
       b.x=b.tx; b.y=b.ty;
-      if(g1Covered(b.tx,b.ty,gk)){
+      const inNet = b.tx>NET1.x && b.tx<NET1.x+NET1.w && b.ty>NET1.y && b.ty<NET1.y+NET1.h;
+      if(!inNet){
+        G1.msg='MISSED!'; G1.msgC=C.grey; G1.msgT=64; SFX.wide();
+        b.bounce=true;   // sails on past the net
+      } else if(g1Covered(b.tx,b.ty,gk)){
         G1.msg='SAVE!'; G1.msgC=C.red; G1.msgT=64; G1.shake=6; SFX.save();
         b.vx=-b.vx*0.3; b.vy=2.6; b.bounce=true;
       } else {
@@ -410,9 +424,11 @@ function g1Draw(){
   const bx=clamp(gk.x-gk.bw/2-gk.reach,NET1.x,NET1.x+NET1.w);
   const bw2=clamp(gk.bw+gk.reach*2, 0, NET1.x+NET1.w-bx);
   ctx.fillStyle='rgba(8,8,12,0.42)'; ctx.fillRect(bx, NET1.y, bw2, NET1.h);
-  drawGoalie(gk.x, NET1.y+NET1.h, gk.bw, gk.bh, gk.lunge, fh);
+  drawGoalie(gk.x, NET1.y+NET1.h, gk.bw, gk.bh, gk.lunge, fh, G1.fhOpen);
   if(G1.phase==='aim'){
-    const open=!g1Covered(G1.aimX,G1.aimY,gk), col=open?C.green:C.red, blink=frame%8<5;
+    const inNet=G1.aimX>NET1.x&&G1.aimX<NET1.x+NET1.w&&G1.aimY>NET1.y&&G1.aimY<NET1.y+NET1.h;
+    const open=inNet&&!g1Covered(G1.aimX,G1.aimY,gk);
+    const col=!inNet?C.grey:(open?C.green:C.red), blink=frame%8<5;
     ctx.strokeStyle=blink?col:C.white; ctx.lineWidth=2;
     ctx.beginPath(); ctx.arc(G1.aimX,G1.aimY,11,0,7); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(G1.aimX-15,G1.aimY); ctx.lineTo(G1.aimX+15,G1.aimY); ctx.moveTo(G1.aimX,G1.aimY-15); ctx.lineTo(G1.aimX,G1.aimY+15); ctx.stroke();
