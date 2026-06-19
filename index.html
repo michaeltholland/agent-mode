@@ -248,6 +248,12 @@ function drawBtn(r,active){
   ctx.fillStyle=active?C.white:C.dgrey; ctx.fillRect(r.x,r.y,r.w,3);
   ctx.fillRect(r.x,r.y,3,r.h); ctx.fillRect(r.x+r.w-3,r.y,3,r.h); ctx.fillRect(r.x,r.y+r.h-3,r.w,3);
 }
+function drawStar(cx,cy,r,filled){
+  ctx.beginPath();
+  for(let i=0;i<10;i++){ const a=-Math.PI/2+i*Math.PI/5, rr=(i%2)?r*0.44:r; const fn=i?'lineTo':'moveTo'; ctx[fn](cx+Math.cos(a)*rr, cy+Math.sin(a)*rr); }
+  ctx.closePath(); ctx.fillStyle=filled?C.yellow:'#2a3350'; ctx.fill();
+  ctx.strokeStyle=filled?C.gold:C.dgrey; ctx.lineWidth=1; ctx.stroke();
+}
 // virtual joystick: base ring + knob offset by stick vector
 function drawJoy(j,s,label,active,accent){
   ctx.fillStyle='rgba(16,22,38,0.82)'; ctx.beginPath(); ctx.arc(j.cx,j.cy,j.r,0,7); ctx.fill();
@@ -261,22 +267,26 @@ function drawJoy(j,s,label,active,accent){
 }
 
 // ====================== STATE ======================
-const S={MENU:0,HELP:1,G1:2,OVER:3};
+const S={MENU:0,HELP:1,G1:2,OVER:3,SURVEY:4};
 let state=S.MENU, frame=0, menuSel=0;
+// where the FEEDBACK / survey emails go (a throwaway address, confirmed by owner)
+const FEEDBACK_EMAIL='laxtapper.feedback@gmail.com';
 
 // ====================== MENU ======================
 const MENU_BTNS=[
   {label:'PLAY GOALIE', sub:'BEAT THE KEEPER',   go:()=>{ g1Init(); state=S.G1; }},
-  {label:'HOW TO PLAY', sub:'CONTROLS & RULES',  go:()=>{ helpPage=0; state=S.HELP; }}
+  {label:'HOW TO PLAY', sub:'CONTROLS & RULES',  go:()=>{ helpPage=0; state=S.HELP; }},
+  {label:'FEEDBACK',    sub:'RATE THE GAME',      go:()=>{ surveyOpen('MENU'); }}
 ];
-function btnRect(i){ return {x:24,y:320+i*70,w:W-48,h:56}; }
+function btnRect(i){ return {x:24,y:252+i*62,w:W-48,h:50}; }
 function menuUpdate(){
   let p; while((p=consumeTap())){
     if(p.x<0){ MENU_BTNS[menuSel].go(); SFX.start(); return; }
     for(let i=0;i<MENU_BTNS.length;i++){ if(hit(p,btnRect(i))){ menuSel=i; SFX.start(); MENU_BTNS[i].go(); return; } }
   }
-  if(keys.aimU){ menuSel=(menuSel+1)%2; keys.aimU=false; }
-  if(keys.aimD){ menuSel=(menuSel+1)%2; keys.aimD=false; }
+  const n=MENU_BTNS.length;
+  if(keys.aimU){ menuSel=(menuSel+n-1)%n; keys.aimU=false; }
+  if(keys.aimD){ menuSel=(menuSel+1)%n; keys.aimD=false; }
 }
 function drawMenu(){
   vgrad(0,0,W,H,C.skyTop,C.skyBot);
@@ -287,19 +297,19 @@ function drawMenu(){
   textCS('LACROSSE',70,5,C.yellow,C.orangeDk);
   textCS('TAPPER',110,7,C.orange,C.black);
   textCS('- GOALIE SHOOTOUT -',146,1,C.cream,C.black);
-  const by=232+Math.sin(frame*0.12)*8;
+  const by=200+Math.sin(frame*0.12)*7;
   ctx.strokeStyle=C.shaft; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(W/2+18,by+14); ctx.lineTo(W/2+4,by); ctx.stroke();
   ctx.fillStyle=C.orange; ctx.fillRect(W/2-2,by-8,10,10); ctx.fillStyle=C.crosse; ctx.fillRect(W/2-1,by-7,8,8);
   drawBall(W/2-6,by-3,5);
+  drawText('BEST '+HI.g1, (W-textW('BEST '+HI.g1,1))/2, 232, 1, C.gold);
   for(let i=0;i<MENU_BTNS.length;i++){
     const b=btnRect(i), sel=(i===menuSel);
     ctx.fillStyle=sel?C.panelHi:C.panel; ctx.fillRect(b.x,b.y,b.w,b.h);
     ctx.fillStyle=sel?C.yellow:C.dgrey; ctx.fillRect(b.x,b.y,b.w,3); ctx.fillRect(b.x,b.y+b.h-3,b.w,3); ctx.fillRect(b.x,b.y,3,b.h); ctx.fillRect(b.x+b.w-3,b.y,3,b.h);
-    drawText(MENU_BTNS[i].label,b.x+(b.w-textW(MENU_BTNS[i].label,2))/2,b.y+12,2,sel?C.white:C.cream);
-    drawText(MENU_BTNS[i].sub,b.x+(b.w-textW(MENU_BTNS[i].sub,1))/2,b.y+36,1,sel?C.green:C.grey);
+    drawText(MENU_BTNS[i].label,b.x+(b.w-textW(MENU_BTNS[i].label,2))/2,b.y+9,2,sel?C.white:C.cream);
+    drawText(MENU_BTNS[i].sub,b.x+(b.w-textW(MENU_BTNS[i].sub,1))/2,b.y+31,1,sel?C.green:C.grey);
   }
-  drawText('BEST '+HI.g1, (W-textW('BEST '+HI.g1,1))/2, 300, 1, C.gold);
-  textCS('TAP TO START',H-22,1,C.cream,C.black);
+  textCS('TAP AN OPTION',H-20,1,C.cream,C.black);
 }
 
 // ====================== HELP ======================
@@ -473,24 +483,72 @@ let over={score:0,best:0,nb:false,t:0};
 function endGame(score){ over.score=score; over.t=0; over.best=HI.g1; over.nb=false;
   if(score>HI.g1){ over.nb=true; HI.g1=score; over.best=score; saveHi(); spawn(W/2,180,40,[C.yellow,C.green,C.gold,C.white]); }
   state=S.OVER; }
+const OV_PLAY={x:24,y:H-160,w:(W-60)/2,h:50}, OV_MENU={x:36+(W-60)/2,y:H-160,w:(W-60)/2,h:50};
+const OV_FB={x:24,y:H-98,w:W-48,h:42};
 function overUpdate(){ over.t++; updateParts(); let p; while((p=consumeTap())){ if(over.t<=20) break;
-  const bw=(W-60)/2;
-  if(hit(p,{x:24,y:H-150,w:bw,h:52})){ g1Init(); state=S.G1; return; }
-  if(hit(p,{x:36+bw,y:H-150,w:bw,h:52})||p.x<0){ state=S.MENU; return; } } }
+  if(hit(p,OV_PLAY)){ g1Init(); state=S.G1; return; }
+  if(hit(p,OV_FB)){ surveyOpen('OVER'); return; }
+  if(hit(p,OV_MENU)||p.x<0){ state=S.MENU; return; } } }
 function drawOver(){
   vgrad(0,0,W,H,'#101a3a','#04060e');
-  textCS('GOALIE',90,2,C.grey,C.black);
-  textCS('GAME OVER',120,4,C.red,C.black);
-  ctx.fillStyle=C.panel; ctx.fillRect(40,170,W-80,120); ctx.fillStyle=C.gold; ctx.fillRect(40,170,W-80,4);
-  textCS('YOUR SCORE',196,1,C.grey,C.black); textCS(''+over.score,214,6,C.yellow,C.black);
-  if(over.nb&&frame%16<10) textCS('NEW BEST!',272,2,C.green,C.black); else textCS('BEST  '+over.best,274,1,C.cream,C.black);
+  textCS('GOALIE',84,2,C.grey,C.black);
+  textCS('GAME OVER',112,4,C.red,C.black);
+  ctx.fillStyle=C.panel; ctx.fillRect(40,160,W-80,116); ctx.fillStyle=C.gold; ctx.fillRect(40,160,W-80,4);
+  textCS('YOUR SCORE',186,1,C.grey,C.black); textCS(''+over.score,204,6,C.yellow,C.black);
+  if(over.nb&&frame%16<10) textCS('NEW BEST!',262,2,C.green,C.black); else textCS('BEST  '+over.best,264,1,C.cream,C.black);
   drawParts();
-  const bw=(W-60)/2;
-  ctx.fillStyle=C.panelHi; ctx.fillRect(24,H-150,bw,52); ctx.fillStyle=C.green; ctx.fillRect(24,H-150,bw,3);
-  drawText('PLAY',24+bw/2-textW('PLAY',2)/2,H-138,2,C.white); drawText('AGAIN',24+bw/2-textW('AGAIN',1)/2,H-118,1,C.green);
-  ctx.fillStyle=C.panelHi; ctx.fillRect(36+bw,H-150,bw,52); ctx.fillStyle=C.yellow; ctx.fillRect(36+bw,H-150,bw,3);
-  drawText('MENU',36+bw+bw/2-textW('MENU',2)/2,H-130,2,C.white);
-  if(over.t>20&&frame%20<12) textCS('TAP A BUTTON',H-44,1,C.cream,C.black);
+  drawBtn(OV_PLAY,false); ctx.fillStyle=C.green; ctx.fillRect(OV_PLAY.x,OV_PLAY.y,OV_PLAY.w,3);
+  drawText('PLAY',OV_PLAY.x+OV_PLAY.w/2-textW('PLAY',2)/2,OV_PLAY.y+8,2,C.white); drawText('AGAIN',OV_PLAY.x+OV_PLAY.w/2-textW('AGAIN',1)/2,OV_PLAY.y+28,1,C.green);
+  drawBtn(OV_MENU,false); ctx.fillStyle=C.yellow; ctx.fillRect(OV_MENU.x,OV_MENU.y,OV_MENU.w,3);
+  drawText('MENU',OV_MENU.x+OV_MENU.w/2-textW('MENU',2)/2,OV_MENU.y+16,2,C.white);
+  drawBtn(OV_FB,false); ctx.fillStyle=C.blue; ctx.fillRect(OV_FB.x,OV_FB.y,OV_FB.w,3);
+  drawText('RATE / FEEDBACK',OV_FB.x+OV_FB.w/2-textW('RATE / FEEDBACK',1)/2,OV_FB.y+16,1,C.cream);
+}
+
+// ====================== SURVEY / FEEDBACK ======================
+const SURVEY_Q=['HOW FUN IS IT?','CONTROLS FEEL?','DIFFICULTY?','HOW IT LOOKS?'];
+let survey={r:[0,0,0,0], from:'MENU', sent:0};
+function surveyOpen(from){ survey.r=[0,0,0,0]; survey.from=from; survey.sent=0; state=S.SURVEY; }
+function starRect(row,i){ return {x:120+i*34-13, y:104+row*52-13, w:26, h:26}; }
+const SV_SUBMIT={x:36,y:392,w:W-72,h:46}, SV_BACK={x:12,y:12,w:80,h:36};
+function surveySubmit(){
+  const r=survey.r, lbl=['FUN','CONTROLS','DIFFICULTY','LOOKS'];
+  let body='LAX TAPPER - PLAYER FEEDBACK%0A%0A';
+  for(let i=0;i<4;i++) body+=lbl[i]+': '+(r[i]||'-')+'/5%0A';
+  body+='MY BEST SCORE: '+HI.g1+'%0A%0AWHAT I LIKED / IDEAS:%0A';
+  const url='mailto:'+FEEDBACK_EMAIL+'?subject='+encodeURIComponent('LAX TAPPER Feedback')+'&body='+body;
+  try{ window.location.href=url; }catch(e){}
+  survey.sent=1;
+}
+function surveyUpdate(){
+  let p; while((p=consumeTap())){
+    if(survey.sent){ state=(survey.from==='OVER')?S.MENU:S.MENU; survey.sent=0; return; }
+    if(hit(p,SV_BACK)){ SFX.ui(); state=S.MENU; return; }
+    if(hit(p,SV_SUBMIT)){ SFX.start(); surveySubmit(); return; }
+    for(let row=0;row<4;row++) for(let i=0;i<5;i++) if(hit(p,starRect(row,i))){ survey.r[row]=i+1; SFX.ui(); }
+  }
+}
+function drawSurvey(){
+  vgrad(0,0,W,H,'#10204a','#040814');
+  ctx.fillStyle=C.panelHi; ctx.fillRect(SV_BACK.x,SV_BACK.y,SV_BACK.w,SV_BACK.h); ctx.fillStyle=C.dgrey; ctx.fillRect(SV_BACK.x,SV_BACK.y,SV_BACK.w,3);
+  glyph('LT',20,22,3,C.cream); drawText('BACK',36,23,2,C.cream);
+  textCS('RATE THE GAME',62,3,C.yellow,C.black);
+  if(survey.sent){
+    textC('THANKS FOR THE FEEDBACK!',150,1,C.green);
+    textC('YOUR MAIL APP SHOULD OPEN',176,1,C.cream);
+    textC('WITH YOUR RATINGS READY',192,1,C.cream);
+    textC('TO SEND. TAP TO CONTINUE.',208,1,C.cream);
+    return;
+  }
+  for(let row=0;row<4;row++){
+    const y=104+row*52;
+    drawText(SURVEY_Q[row], 20, y-3, 1, C.cream);
+    for(let i=0;i<5;i++){ const s=starRect(row,i); drawStar(s.x+13,s.y+13,12, i<survey.r[row]); }
+  }
+  drawBtn(SV_SUBMIT,false); ctx.fillStyle=C.green; ctx.fillRect(SV_SUBMIT.x,SV_SUBMIT.y,SV_SUBMIT.w,3);
+  drawText('SUBMIT FEEDBACK',SV_SUBMIT.x+SV_SUBMIT.w/2-textW('SUBMIT FEEDBACK',2)/2,SV_SUBMIT.y+15,2,C.white);
+  textC('OPENS YOUR EMAIL APP TO SEND',H-72,1,C.grey);
+  textC('TAP STARS TO RATE - ADD NOTES IN THE EMAIL',H-52,1,C.grey);
 }
 
 // ====================== MAIN LOOP (crash-safe) ======================
@@ -500,6 +558,7 @@ function frameStep(){
   else if(state===S.HELP){ helpUpdate(); drawHelp(); }
   else if(state===S.G1){ g1Update(); g1Draw(); }
   else if(state===S.OVER){ overUpdate(); drawOver(); }
+  else if(state===S.SURVEY){ surveyUpdate(); drawSurvey(); }
   ctx.globalAlpha=0.05; ctx.fillStyle='#000'; for(let y=0;y<H;y+=3) ctx.fillRect(0,y,W,1); ctx.globalAlpha=1;
 }
 let lastErr='';
