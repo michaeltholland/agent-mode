@@ -167,6 +167,12 @@ function vgrad(x,y,w,h,c1,c2){ const g=ctx.createLinearGradient(x,y,x,y+h); g.ad
 const HI={g1:0};
 try{ HI.g1=+localStorage.getItem('lax4_hi1')||0; }catch(e){}
 function saveHi(){ try{ localStorage.setItem('lax4_hi1',HI.g1); }catch(e){} }
+// leaderboard (top 10, stored on this device)
+let LB=[];
+try{ LB=JSON.parse(localStorage.getItem('lax4_lb')||'[]')||[]; if(!Array.isArray(LB)) LB=[]; }catch(e){ LB=[]; }
+function lbSave(){ try{ localStorage.setItem('lax4_lb',JSON.stringify(LB)); }catch(e){} }
+function lbQualifies(s){ return s>0 && (LB.length<10 || s>LB[LB.length-1].s); }
+function lbInsert(n,s){ LB.push({n:n,s:s}); LB.sort((a,b)=>b.s-a.s); LB=LB.slice(0,10); lbSave(); return LB.indexOf(LB.find(e=>e.n===n&&e.s===s)); }
 let parts=[];
 function spawn(x,y,n,cols,sp){ sp=sp||2.6; for(let i=0;i<n;i++) parts.push({x,y,vx:rnd(-sp,sp),vy:rnd(-sp*1.3,-0.3),life:rnd(24,46),c:cols[(Math.random()*cols.length)|0]}); }
 function updateParts(){ for(let i=parts.length-1;i>=0;i--){ const p=parts[i]; p.x+=p.vx; p.y+=p.vy; p.vy+=0.14; p.life--; if(p.life<=0) parts.splice(i,1); } }
@@ -267,7 +273,7 @@ function drawJoy(j,s,label,active,accent){
 }
 
 // ====================== STATE ======================
-const S={MENU:0,HELP:1,G1:2,OVER:3,SURVEY:4};
+const S={MENU:0,HELP:1,G1:2,OVER:3,SURVEY:4,ENTRY:5,LB:6};
 let state=S.MENU, frame=0, menuSel=0;
 // where the FEEDBACK / survey emails go (a throwaway address, confirmed by owner)
 const FEEDBACK_EMAIL='laxtapper.feedback@gmail.com';
@@ -276,9 +282,10 @@ const FEEDBACK_EMAIL='laxtapper.feedback@gmail.com';
 const MENU_BTNS=[
   {label:'PLAY GOALIE', sub:'BEAT THE KEEPER',   go:()=>{ g1Init(); state=S.G1; }},
   {label:'HOW TO PLAY', sub:'CONTROLS & RULES',  go:()=>{ helpPage=0; state=S.HELP; }},
-  {label:'FEEDBACK',    sub:'RATE THE GAME',      go:()=>{ surveyOpen('MENU'); }}
+  {label:'FEEDBACK',    sub:'RATE THE GAME',      go:()=>{ surveyOpen('MENU'); }},
+  {label:'LEADERBOARD', sub:'TOP 10 SCORES',      go:()=>{ lbOpen('MENU'); }}
 ];
-function btnRect(i){ return {x:24,y:252+i*62,w:W-48,h:50}; }
+function btnRect(i){ return {x:24,y:248+i*58,w:W-48,h:48}; }
 function menuUpdate(){
   let p; while((p=consumeTap())){
     if(p.x<0){ MENU_BTNS[menuSel].go(); SFX.start(); return; }
@@ -480,29 +487,85 @@ function tutorial(title,l1,l2){
 
 // ====================== GAME OVER ======================
 let over={score:0,best:0,nb:false,t:0};
+let entry={ini:[0,0,0],score:0};
+let lb={from:'MENU',newRank:-1};
+function lbOpen(from){ lb.from=from; lb.newRank=-1; state=S.LB; }
 function endGame(score){ over.score=score; over.t=0; over.best=HI.g1; over.nb=false;
   if(score>HI.g1){ over.nb=true; HI.g1=score; over.best=score; saveHi(); spawn(W/2,180,40,[C.yellow,C.green,C.gold,C.white]); }
-  state=S.OVER; }
-const OV_PLAY={x:24,y:H-160,w:(W-60)/2,h:50}, OV_MENU={x:36+(W-60)/2,y:H-160,w:(W-60)/2,h:50};
-const OV_FB={x:24,y:H-98,w:W-48,h:42};
+  if(lbQualifies(score)){ entry.ini=[0,0,0]; entry.score=score; state=S.ENTRY; }
+  else state=S.OVER; }
+const HW=(W-60)/2;
+const OV_PLAY={x:24,y:H-168,w:HW,h:48}, OV_MENU={x:36+HW,y:H-168,w:HW,h:48};
+const OV_LB={x:24,y:H-110,w:HW,h:42}, OV_FB={x:36+HW,y:H-110,w:HW,h:42};
 function overUpdate(){ over.t++; updateParts(); let p; while((p=consumeTap())){ if(over.t<=20) break;
   if(hit(p,OV_PLAY)){ g1Init(); state=S.G1; return; }
+  if(hit(p,OV_LB)){ lbOpen('GAME'); return; }
   if(hit(p,OV_FB)){ surveyOpen('OVER'); return; }
   if(hit(p,OV_MENU)||p.x<0){ state=S.MENU; return; } } }
 function drawOver(){
   vgrad(0,0,W,H,'#101a3a','#04060e');
-  textCS('GOALIE',84,2,C.grey,C.black);
-  textCS('GAME OVER',112,4,C.red,C.black);
-  ctx.fillStyle=C.panel; ctx.fillRect(40,160,W-80,116); ctx.fillStyle=C.gold; ctx.fillRect(40,160,W-80,4);
-  textCS('YOUR SCORE',186,1,C.grey,C.black); textCS(''+over.score,204,6,C.yellow,C.black);
-  if(over.nb&&frame%16<10) textCS('NEW BEST!',262,2,C.green,C.black); else textCS('BEST  '+over.best,264,1,C.cream,C.black);
+  textCS('GOALIE',80,2,C.grey,C.black);
+  textCS('GAME OVER',106,4,C.red,C.black);
+  ctx.fillStyle=C.panel; ctx.fillRect(40,150,W-80,112); ctx.fillStyle=C.gold; ctx.fillRect(40,150,W-80,4);
+  textCS('YOUR SCORE',176,1,C.grey,C.black); textCS(''+over.score,194,6,C.yellow,C.black);
+  if(over.nb&&frame%16<10) textCS('NEW BEST!',250,2,C.green,C.black); else textCS('BEST  '+over.best,252,1,C.cream,C.black);
   drawParts();
   drawBtn(OV_PLAY,false); ctx.fillStyle=C.green; ctx.fillRect(OV_PLAY.x,OV_PLAY.y,OV_PLAY.w,3);
   drawText('PLAY',OV_PLAY.x+OV_PLAY.w/2-textW('PLAY',2)/2,OV_PLAY.y+8,2,C.white); drawText('AGAIN',OV_PLAY.x+OV_PLAY.w/2-textW('AGAIN',1)/2,OV_PLAY.y+28,1,C.green);
   drawBtn(OV_MENU,false); ctx.fillStyle=C.yellow; ctx.fillRect(OV_MENU.x,OV_MENU.y,OV_MENU.w,3);
   drawText('MENU',OV_MENU.x+OV_MENU.w/2-textW('MENU',2)/2,OV_MENU.y+16,2,C.white);
+  drawBtn(OV_LB,false); ctx.fillStyle=C.gold; ctx.fillRect(OV_LB.x,OV_LB.y,OV_LB.w,3);
+  drawText('RANKS',OV_LB.x+OV_LB.w/2-textW('RANKS',1)/2,OV_LB.y+16,1,C.cream);
   drawBtn(OV_FB,false); ctx.fillStyle=C.blue; ctx.fillRect(OV_FB.x,OV_FB.y,OV_FB.w,3);
-  drawText('RATE / FEEDBACK',OV_FB.x+OV_FB.w/2-textW('RATE / FEEDBACK',1)/2,OV_FB.y+16,1,C.cream);
+  drawText('FEEDBACK',OV_FB.x+OV_FB.w/2-textW('FEEDBACK',1)/2,OV_FB.y+16,1,C.cream);
+}
+
+// ====================== INITIALS ENTRY ======================
+const EN_UP=[], EN_DN=[], EN_BOX=[];
+for(let i=0;i<3;i++){ const x=67+i*60; EN_BOX[i]={x,y:198,w:46,h:50}; EN_UP[i]={x,y:156,w:46,h:34}; EN_DN[i]={x,y:256,w:46,h:34}; }
+const EN_DONE={x:80,y:320,w:W-160,h:48};
+function entryUpdate(){ let p; while((p=consumeTap())){
+  for(let i=0;i<3;i++){ if(hit(p,EN_UP[i])){ entry.ini[i]=(entry.ini[i]+1)%26; SFX.ui(); } if(hit(p,EN_DN[i])){ entry.ini[i]=(entry.ini[i]+25)%26; SFX.ui(); } }
+  if(hit(p,EN_DONE)||p.x<0){ const name=entry.ini.map(c=>String.fromCharCode(65+c)).join(''); lb.newRank=lbInsert(name,entry.score); lb.from='GAME'; SFX.start(); state=S.LB; return; }
+}}
+function drawEntry(){
+  vgrad(0,0,W,H,'#101a3a','#04060e');
+  textCS('NEW TOP 10!',64,3,C.green,C.black);
+  textCS('SCORE '+entry.score,98,2,C.yellow,C.black);
+  textCS('ENTER YOUR INITIALS',128,1,C.cream,C.black);
+  for(let i=0;i<3;i++){
+    drawBtn(EN_UP[i],false); glyph('UP',EN_UP[i].x+15,EN_UP[i].y+9,3,C.cream);
+    ctx.fillStyle=C.panelHi; ctx.fillRect(EN_BOX[i].x,EN_BOX[i].y,EN_BOX[i].w,EN_BOX[i].h);
+    ctx.fillStyle=C.gold; ctx.fillRect(EN_BOX[i].x,EN_BOX[i].y,EN_BOX[i].w,3); ctx.fillRect(EN_BOX[i].x,EN_BOX[i].y+EN_BOX[i].h-3,EN_BOX[i].w,3);
+    const ch=String.fromCharCode(65+entry.ini[i]); drawText(ch, EN_BOX[i].x+EN_BOX[i].w/2-textW(ch,4)/2, EN_BOX[i].y+13, 4, C.white);
+    drawBtn(EN_DN[i],false); glyph('DN',EN_DN[i].x+15,EN_DN[i].y+9,3,C.cream);
+  }
+  drawBtn(EN_DONE,false); ctx.fillStyle=C.green; ctx.fillRect(EN_DONE.x,EN_DONE.y,EN_DONE.w,3);
+  drawText('DONE',EN_DONE.x+EN_DONE.w/2-textW('DONE',3)/2,EN_DONE.y+15,3,C.white);
+  textC('TAP ARROWS TO CHANGE LETTERS',H-40,1,C.grey);
+}
+
+// ====================== LEADERBOARD ======================
+function lbUpdate(){ let p; while((p=consumeTap())){
+  if(hit(p,OV_PLAY)){ g1Init(); state=S.G1; return; }
+  if(hit(p,OV_MENU)||p.x<0){ state=S.MENU; return; } }}
+function drawLeaderboard(){
+  vgrad(0,0,W,H,'#101a3a','#04060e');
+  textCS('LEADERBOARD',54,3,C.gold,C.black);
+  textC('TOP 10 ON THIS DEVICE',84,1,C.grey);
+  if(LB.length===0){ textC('NO SCORES YET -',150,1,C.cream); textC('GO BURY SOME CORNERS!',170,1,C.cream); }
+  else { let y=104; for(let i=0;i<LB.length;i++){ const e=LB[i], hl=(i===lb.newRank);
+    if(hl){ ctx.fillStyle='rgba(255,210,63,0.16)'; ctx.fillRect(28,y-3,W-56,24); }
+    const col=hl?C.yellow:C.cream;
+    drawText((i+1)+'.', 36, y, 2, hl?C.gold:C.grey);
+    drawText(e.n, 96, y, 2, col);
+    drawText(''+e.s, W-44-textW(''+e.s,2), y, 2, col);
+    y+=27;
+  }}
+  drawBtn(OV_PLAY,false); ctx.fillStyle=C.green; ctx.fillRect(OV_PLAY.x,OV_PLAY.y,OV_PLAY.w,3);
+  drawText('PLAY',OV_PLAY.x+OV_PLAY.w/2-textW('PLAY',2)/2,OV_PLAY.y+16,2,C.white);
+  drawBtn(OV_MENU,false); ctx.fillStyle=C.yellow; ctx.fillRect(OV_MENU.x,OV_MENU.y,OV_MENU.w,3);
+  drawText('MENU',OV_MENU.x+OV_MENU.w/2-textW('MENU',2)/2,OV_MENU.y+16,2,C.white);
 }
 
 // ====================== SURVEY / FEEDBACK ======================
@@ -559,6 +622,8 @@ function frameStep(){
   else if(state===S.G1){ g1Update(); g1Draw(); }
   else if(state===S.OVER){ overUpdate(); drawOver(); }
   else if(state===S.SURVEY){ surveyUpdate(); drawSurvey(); }
+  else if(state===S.ENTRY){ entryUpdate(); drawEntry(); }
+  else if(state===S.LB){ lbUpdate(); drawLeaderboard(); }
   ctx.globalAlpha=0.05; ctx.fillStyle='#000'; for(let y=0;y<H;y+=3) ctx.fillRect(0,y,W,1); ctx.globalAlpha=1;
 }
 let lastErr='';
