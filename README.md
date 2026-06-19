@@ -8,26 +8,28 @@ A single-player, one-button ("tapper") lacrosse arcade game. Open
 **tap / click / spacebar**.
 
 Built mobile-first: the canvas scales up to fill a phone screen, with a
-16-bit style (shaded sprites, gradients, LED scoreboard). There's a
-built-in **HOW TO PLAY** guide plus a first-time tutorial overlay for each
-game.
+16-bit style (shaded sprites, gradients). There's a built-in **HOW TO
+PLAY** guide plus a first-time tutorial overlay.
 
-### Two games (pick from the menu — tap a game to start)
+### The game — Goalie Shootout
 
-**1. Goalie Net** — Modeled on a lacrosse shooting target: an orange-framed
-goal with a black tarp and white cut-out holes. A crosshair drifts over the
-net; tap to fire. Put the ball through a hole to score — **corners = 5 pts,
-edge holes = 3 pts**. Hit the tarp and it's a save. You get 10 shots.
-
-**2. Skee Ball** — A real skee-ball cabinet: salmon lane, concentric
-**10 / 20** loops, center **30 / 40 / 50** holes, and **100** holes in the
-top corners, under a "SKEE BALL" scoreboard with an LED score. A power bar
-slides up and down — tap to stop it. Higher power travels farther up the
-lane for more points; nail the very top to reach the 100 corner. 9 balls.
+Score on a **live goalie** who patrols the net and blocks it with his body
+(shown as a dark coverage zone, like a real shooting screen). Beat him by
+shooting into the open space — go **high (top shelf)** or **wide (far
+side)**, because he lunges at your shot. You get **10 shots**.
 
 ### Controls
-- **Tap / click** a menu button to start that game or open the guide
-- **Tap / click / spacebar** to shoot or to stop the power bar
-- Desktop: **arrow keys** move the menu selection, **Enter/Space** confirms
+- **Drag anywhere on the net to aim** — the reticle follows your finger and
+  turns **green when the net is open, red when the keeper has it covered**.
+- Or use the on-screen **◀ ▶ / ▲ ▼** pads to nudge your aim.
+- Tap the big **SHOOT** bar (or **spacebar**) to fire.
+- Desktop: **arrow keys** aim, **Space/Enter** shoots.
 
-High scores for each game are saved in your browser (localStorage).
+### Scoring
+- **Top corner = 5 pts**, edges = 3, close to the keeper = 1. Save = 0.
+
+The high score is saved in your browser (localStorage). The render loop is
+crash-safe: any unexpected error shows a message and a tap returns to the
+menu instead of freezing.
+
+> The skee-ball mode was removed for now and may return later.
