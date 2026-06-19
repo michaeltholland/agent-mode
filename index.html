@@ -199,6 +199,17 @@ lbFetch();   // prime the world board on load
 let STATS={games:0,goals:0,bestCombo:0,fiveHoles:0,topCorners:0,perfects:0};
 try{ STATS=Object.assign(STATS, JSON.parse(localStorage.getItem('lax4_stats')||'{}')||{}); }catch(e){}
 function statsSave(){ try{ localStorage.setItem('lax4_stats',JSON.stringify(STATS)); }catch(e){} }
+// ---- player profile: appearance, coins, upgrades ----
+const PALETTE=['#e23b3b','#ff8c1a','#ffd23f','#37c66b','#1f9be0','#7a5cff','#ff5ca8','#ffffff','#0e1322','#1f2633','#9aa3b2','#7a5a2b'];
+let PROFILE={num:15,jersey:'#e23b3b',numCol:'#ffffff',helmet:'#0e1322',pants:'#1f2633',shaft:'#7a5a2b',head:'#ff8c1a',coins:0,stickLv:0,trainLv:0};
+try{ PROFILE=Object.assign(PROFILE, JSON.parse(localStorage.getItem('lax4_profile')||'{}')||{}); }catch(e){}
+function profSave(){ try{ localStorage.setItem('lax4_profile',JSON.stringify(PROFILE)); }catch(e){} }
+function shade(hex,p){ const n=parseInt((hex||'#000').slice(1),16); let r=(n>>16)&255,g=(n>>8)&255,b=n&255;
+  r=clamp(Math.round(r+255*p),0,255); g=clamp(Math.round(g+255*p),0,255); b=clamp(Math.round(b+255*p),0,255); return 'rgb('+r+','+g+','+b+')'; }
+const UP_MAX=10;                          // max level per track
+const stickSpd=()=>9.5*(1+0.03*PROFILE.stickLv);          // +3% shot speed / level
+const trainMul=()=>1+0.04*PROFILE.trainLv;                // +4% move & aim speed / level
+function upCost(lv){ return 20*(lv+1); }                  // 20,40,60... coins
 let ACH_DONE={};
 try{ ACH_DONE=JSON.parse(localStorage.getItem('lax4_ach')||'{}')||{}; }catch(e){ ACH_DONE={}; }
 function achSave(){ try{ localStorage.setItem('lax4_ach',JSON.stringify(ACH_DONE)); }catch(e){} }
@@ -229,19 +240,20 @@ function drawBall(x,y,r){ r=r||4;
   ctx.fillStyle='rgba(255,255,255,0.85)'; ctx.fillRect(x-r+1,y-r+1,2,2);
 }
 function drawShooter(x,y,wind){
-  ctx.fillStyle=C.jersey; ctx.fillRect(x-6,y,5,14); ctx.fillRect(x+2,y,5,14);
+  const P=PROFILE;
+  ctx.fillStyle=P.pants; ctx.fillRect(x-6,y,5,14); ctx.fillRect(x+2,y,5,14);
   ctx.fillStyle=C.black; ctx.fillRect(x-7,y+13,7,3); ctx.fillRect(x+1,y+13,7,3);
-  ctx.fillStyle=C.jersey; ctx.fillRect(x-9,y-16,18,18);
-  ctx.fillStyle=C.jerseyHi; ctx.fillRect(x-9,y-16,18,3);
-  drawText('15',x-6,y-11,1,C.num);
+  ctx.fillStyle=P.jersey; ctx.fillRect(x-9,y-16,18,18);
+  ctx.fillStyle=shade(P.jersey,0.18); ctx.fillRect(x-9,y-16,18,3);
+  const ns=''+P.num; drawText(ns,x-textW(ns,1)/2,y-11,1,P.numCol);
   ctx.fillStyle=C.skin; ctx.fillRect(x-4,y-25,8,9);
-  ctx.fillStyle=C.helmet; ctx.fillRect(x-6,y-27,12,8);
-  ctx.fillStyle=C.helmetSh; ctx.fillRect(x-6,y-21,12,2);
+  ctx.fillStyle=P.helmet; ctx.fillRect(x-6,y-27,12,8);
+  ctx.fillStyle=shade(P.helmet,-0.22); ctx.fillRect(x-6,y-21,12,2);
   ctx.fillStyle=C.dgrey; ctx.fillRect(x+3,y-22,3,4);
   const sw=wind?4:0;
   ctx.strokeStyle=C.skin; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(x+6,y-12); ctx.lineTo(x+13+sw,y-20); ctx.stroke();
-  ctx.strokeStyle=C.shaft; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(x+13+sw,y-20); ctx.lineTo(x+24+sw,y-42); ctx.stroke();
-  ctx.fillStyle=C.orange; ctx.fillRect(x+22+sw,y-50,8,8); ctx.fillStyle=C.crosse; ctx.fillRect(x+23+sw,y-49,6,6);
+  ctx.strokeStyle=P.shaft; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(x+13+sw,y-20); ctx.lineTo(x+24+sw,y-42); ctx.stroke();
+  ctx.fillStyle=P.head; ctx.fillRect(x+22+sw,y-50,8,8); ctx.fillStyle=shade(P.head,-0.25); ctx.fillRect(x+23+sw,y-49,6,6);
 }
 function drawGoalie(x,baseY,bw,bh,lunge,fh,fhOpen){
   const top=baseY-bh, upperH=Math.round(bh*0.52), legTop=top+upperH, gap=18, legW=(bw-gap)/2;
@@ -317,7 +329,7 @@ function drawJoy(j,s,label,active,accent){
 }
 
 // ====================== STATE ======================
-const S={MENU:0,HELP:1,G1:2,OVER:3,SURVEY:4,ENTRY:5,LB:6,BADGES:7};
+const S={MENU:0,HELP:1,G1:2,OVER:3,SURVEY:4,ENTRY:5,LB:6,BADGES:7,LOCKER:8};
 let state=S.MENU, frame=0, menuSel=0;
 // where the FEEDBACK / survey emails go (a throwaway address, confirmed by owner)
 const FEEDBACK_EMAIL='laxtapper.feedback@gmail.com';
@@ -325,12 +337,13 @@ const FEEDBACK_EMAIL='laxtapper.feedback@gmail.com';
 // ====================== MENU ======================
 const HWg=(W-48-12)/2;   // grid half-width
 const MENU_BTNS=[
-  {label:'PLAY GOALIE', r:{x:24,y:246,w:W-48,h:58},      go:()=>{ g1Init(); state=S.G1; }},
-  {label:'HOW TO PLAY', r:{x:24,y:316,w:HWg,h:50},       go:()=>{ helpPage=0; state=S.HELP; }},
-  {label:'RANKS',       r:{x:36+HWg,y:316,w:HWg,h:50},   go:()=>{ lbOpen('MENU'); }},
-  {label:'BADGES',      r:{x:24,y:374,w:HWg,h:50},       go:()=>{ state=S.BADGES; }},
-  {label:'FEEDBACK',    r:{x:36+HWg,y:374,w:HWg,h:50},   go:()=>{ surveyOpen('MENU'); }},
-  {label:'SHARE GAME',  r:{x:24,y:432,w:W-48,h:44},      go:()=>{ shareGame(0); }}
+  {label:'PLAY GOALIE', r:{x:24,y:238,w:W-48,h:54},      go:()=>{ g1Init(); state=S.G1; }},
+  {label:'LOCKER ROOM', r:{x:24,y:300,w:HWg,h:46},       go:()=>{ lockerOpen(); }},
+  {label:'RANKS',       r:{x:36+HWg,y:300,w:HWg,h:46},   go:()=>{ lbOpen('MENU'); }},
+  {label:'BADGES',      r:{x:24,y:352,w:HWg,h:46},       go:()=>{ state=S.BADGES; }},
+  {label:'HOW TO PLAY', r:{x:36+HWg,y:352,w:HWg,h:46},   go:()=>{ helpPage=0; state=S.HELP; }},
+  {label:'FEEDBACK',    r:{x:24,y:404,w:HWg,h:46},       go:()=>{ surveyOpen('MENU'); }},
+  {label:'SHARE GAME',  r:{x:36+HWg,y:404,w:HWg,h:46},   go:()=>{ shareGame(0); }}
 ];
 function menuUpdate(){
   let p; while((p=consumeTap())){
@@ -354,9 +367,10 @@ function drawMenu(){
   ctx.strokeStyle=C.shaft; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(W/2+18,by+14); ctx.lineTo(W/2+4,by); ctx.stroke();
   ctx.fillStyle=C.orange; ctx.fillRect(W/2-2,by-8,10,10); ctx.fillStyle=C.crosse; ctx.fillRect(W/2-1,by-7,8,8);
   drawBall(W/2-6,by-3,5);
-  drawText('BEST '+HI.g1, (W-textW('BEST '+HI.g1,1))/2, 228, 1, C.gold);
+  const info='BEST '+HI.g1+'   COINS '+PROFILE.coins;
+  drawText(info, (W-textW(info,1))/2, 222, 1, C.gold);
   for(let i=0;i<MENU_BTNS.length;i++){
-    const b=MENU_BTNS[i].r, sel=(i===menuSel), big=(b.h>54), sc=big?2:1;
+    const b=MENU_BTNS[i].r, sel=(i===menuSel), big=(i===0), sc=big?2:1;
     ctx.fillStyle=sel?C.panelHi:C.panel; ctx.fillRect(b.x,b.y,b.w,b.h);
     ctx.fillStyle=sel?C.yellow:C.dgrey; ctx.fillRect(b.x,b.y,b.w,3); ctx.fillRect(b.x,b.y+b.h-3,b.w,3); ctx.fillRect(b.x,b.y,3,b.h); ctx.fillRect(b.x+b.w-3,b.y,3,b.h);
     drawText(MENU_BTNS[i].label,b.x+(b.w-textW(MENU_BTNS[i].label,sc))/2,b.y+(b.h-5*sc)/2,sc,sel?C.white:C.cream);
@@ -422,7 +436,7 @@ function g1Covered(tx,ty,gk){
 }
 function g1NextShot(){ if(G1.shots<=0){ endGame(G1.score); return; } G1.phase='aim'; G1.ball=null; G1.clock=SHOT_CLOCK; }
 function g1Fire(){
-  const sx=G1.shooterX, sy=G1.shooterY-44, tx=G1.aimX, ty=G1.aimY, d=dist(sx,sy,tx,ty)||1, spd=9.5;
+  const sx=G1.shooterX, sy=G1.shooterY-44, tx=G1.aimX, ty=G1.aimY, d=dist(sx,sy,tx,ty)||1, spd=stickSpd();
   G1.ball={x:sx,y:sy,vx:(tx-sx)/d*spd,vy:(ty-sy)/d*spd,tx,ty,t:0,total:Math.max(8,d/spd)};
   G1.phase='fly'; G1.shots--; G1.gk.lunge=0; sR.dx=0; sR.dy=0; SFX.shoot();
 }
@@ -438,8 +452,9 @@ function g1Update(){
   // LEFT STICK / WASD: move the attacker in any direction (swings the angle, closes the gap)
   const moveDx = sL.dx + (keys.moveR?1:0) - (keys.moveL?1:0);
   const moveDy = sL.dy + (keys.moveD?1:0) - (keys.moveU?1:0);
-  const nmx=clamp(G1.shooterX + moveDx*2.8, SH_MINX, SH_MAXX);
-  const nmy=clamp(G1.shooterY + moveDy*2.8, SH_MINY, SH_MAXY);
+  const mspd=2.8*trainMul();
+  const nmx=clamp(G1.shooterX + moveDx*mspd, SH_MINX, SH_MAXX);
+  const nmy=clamp(G1.shooterY + moveDy*mspd, SH_MINY, SH_MAXY);
   const cp=avoidCrease(nmx,nmy);              // can't step inside the crease
   G1.shooterX=clamp(cp.x,SH_MINX,SH_MAXX); G1.shooterY=clamp(cp.y,SH_MINY,SH_MAXY);
   // goalie plays the angle: slides toward the side the shooter is on (sharper later)
@@ -460,8 +475,9 @@ function g1Update(){
         G1.aimX = clamp(AIM_CX + sR.dx*AIM_EX, AIM_MINX, AIM_MAXX);
         G1.aimY = clamp(AIM_CY + sR.dy*AIM_EY, AIM_MINY, AIM_MAXY);
       } else if(keys.aimL||keys.aimR||keys.aimU||keys.aimD){
-        G1.aimX = clamp(G1.aimX + ((keys.aimR?1:0)-(keys.aimL?1:0))*3.4, AIM_MINX, AIM_MAXX);
-        G1.aimY = clamp(G1.aimY + ((keys.aimD?1:0)-(keys.aimU?1:0))*3.4, AIM_MINY, AIM_MAXY);
+        const asp=3.4*trainMul();
+        G1.aimX = clamp(G1.aimX + ((keys.aimR?1:0)-(keys.aimL?1:0))*asp, AIM_MINX, AIM_MAXX);
+        G1.aimY = clamp(G1.aimY + ((keys.aimD?1:0)-(keys.aimU?1:0))*asp, AIM_MINY, AIM_MAXY);
       }
       let fire=rReleased;
       let p; while((p=consumeTap())){ if(p.x<0) fire=true; }   // space = shoot; drain the rest
@@ -489,7 +505,7 @@ function g1Update(){
         else { pts=3; label='FAR SIDE!'; }
         G1.streak++; if(G1.streak>G1.maxCombo) G1.maxCombo=G1.streak;
         let bonus=0; if(G1.streak>=2){ bonus=G1.streak-1; pts+=bonus; }
-        G1.score+=pts; G1.goals++;
+        G1.score+=pts; G1.goals++; PROFILE.coins+=pts;   // 1 coin per point scored
         const hot=G1.streak>=3;
         G1.msg=(G1.streak>=2?('x'+G1.streak+' '):'')+label+' +'+pts; G1.msgC=hot?C.gold:(five?C.gold:C.green); G1.msgT=72;
         spawn(b.x,b.y,hot?30:(five?28:20),hot?[C.gold,C.red,C.yellow,C.white]:(five?[C.gold,C.yellow,C.white]:[C.green,C.yellow,C.white]));
@@ -578,7 +594,7 @@ function lbOpen(from){ lb.from=from; if(from!=='GAME') lb.mine=null; lbFetch(); 
 function endGame(score){ over.score=score; over.t=0; over.best=HI.g1; over.nb=false;
   if(score>HI.g1){ over.nb=true; HI.g1=score; over.best=score; saveHi(); spawn(W/2,180,40,[C.yellow,C.green,C.gold,C.white]); }
   STATS.games++; STATS.goals+=G1.goals; STATS.bestCombo=Math.max(STATS.bestCombo,G1.maxCombo);
-  STATS.fiveHoles+=G1.fiveHoles; STATS.topCorners+=G1.topCorners; if(G1.goals>=10) STATS.perfects++; statsSave();
+  STATS.fiveHoles+=G1.fiveHoles; STATS.topCorners+=G1.topCorners; if(G1.goals>=10) STATS.perfects++; statsSave(); profSave();
   const nb=[]; function unlock(id){ if(!ACH_DONE[id]){ ACH_DONE[id]=1; nb.push(id); } }
   if(G1.goals>=1) unlock('first'); if(G1.topCorners>=1) unlock('snipe'); if(G1.fiveHoles>=1) unlock('five');
   if(G1.goals>=3) unlock('hat'); if(G1.maxCombo>=3) unlock('combo3'); if(G1.maxCombo>=5) unlock('combo5');
@@ -770,11 +786,93 @@ function drawBadges(){
   textCS('TAP TO RETURN',H-20,1,C.cream,C.black);
 }
 
+// ====================== LOCKER ROOM (gear + upgrades) ======================
+let lockerTab=0, lockerPart=0;
+const PARTS=[
+  {key:'num',   label:'JERSEY #'},
+  {key:'jersey',label:'JERSEY'},
+  {key:'numCol',label:'NUMBER'},
+  {key:'helmet',label:'HELMET'},
+  {key:'pants', label:'PANTS'},
+  {key:'shaft', label:'STICK SHAFT'},
+  {key:'head',  label:'STICK HEAD'}
+];
+function lockerOpen(){ lockerTab=0; lockerPart=0; state=S.LOCKER; }
+const LK_TAB1={x:20,y:44,w:124,h:32}, LK_TAB2={x:156,y:44,w:124,h:32};
+const LK_PARTL={x:18,y:210,w:32,h:32}, LK_PARTR={x:W-50,y:210,w:32,h:32};
+const LK_MINUS={x:58,y:256,w:54,h:50}, LK_PLUS={x:W-112,y:256,w:54,h:50};
+const LK_BUY1={x:W-104,y:188,w:84,h:40}, LK_BUY2={x:W-104,y:338,w:84,h:40};
+const LK_BACK={x:20,y:H-50,w:W-40,h:40};
+function lkSwatch(i){ return {x:33+(i%6)*40, y:262+((i/6)|0)*42, w:34, h:34}; }
+function buyUpgrade(key){ const lv=PROFILE[key]; if(lv>=UP_MAX) return; const c=upCost(lv);
+  if(PROFILE.coins>=c){ PROFILE.coins-=c; PROFILE[key]=lv+1; profSave(); SFX.big(); }
+  else { SFX.save(); pushToast('NOT ENOUGH COINS','SHOP'); } }
+function lockerUpdate(){ let p; while((p=consumeTap())){
+  if(hit(p,LK_BACK)||p.x<0){ profSave(); state=S.MENU; return; }
+  if(hit(p,LK_TAB1)){ lockerTab=0; SFX.ui(); return; }
+  if(hit(p,LK_TAB2)){ lockerTab=1; SFX.ui(); return; }
+  if(lockerTab===0){
+    if(hit(p,LK_PARTL)){ lockerPart=(lockerPart+PARTS.length-1)%PARTS.length; SFX.ui(); return; }
+    if(hit(p,LK_PARTR)){ lockerPart=(lockerPart+1)%PARTS.length; SFX.ui(); return; }
+    const part=PARTS[lockerPart];
+    if(part.key==='num'){
+      if(hit(p,LK_MINUS)){ PROFILE.num=(PROFILE.num+99)%100; SFX.ui(); profSave(); return; }
+      if(hit(p,LK_PLUS)){ PROFILE.num=(PROFILE.num+1)%100; SFX.ui(); profSave(); return; }
+    } else {
+      for(let i=0;i<PALETTE.length;i++){ if(hit(p,lkSwatch(i))){ PROFILE[part.key]=PALETTE[i]; SFX.ui(); profSave(); return; } }
+    }
+  } else {
+    if(hit(p,LK_BUY1)){ buyUpgrade('stickLv'); return; }
+    if(hit(p,LK_BUY2)){ buyUpgrade('trainLv'); return; }
+  }
+}}
+function drawTab(r,label,on){ ctx.fillStyle=on?C.panelHi:C.panel; ctx.fillRect(r.x,r.y,r.w,r.h);
+  ctx.fillStyle=on?C.yellow:C.dgrey; ctx.fillRect(r.x,r.y,r.w,3);
+  drawText(label,r.x+(r.w-textW(label,1))/2,r.y+(r.h-5)/2,1,on?C.white:C.cream); }
+function drawCard(y0,title,sub,lv,effect,buyR){
+  ctx.fillStyle=C.panel; ctx.fillRect(20,y0,W-40,120); ctx.fillStyle=C.dgrey; ctx.fillRect(20,y0,W-40,3);
+  drawText(title,30,y0+10,2,C.yellow); drawText(sub,30,y0+34,1,C.grey);
+  for(let i=0;i<UP_MAX;i++){ ctx.fillStyle=i<lv?C.green:'#243049'; ctx.fillRect(30+i*((W-100)/UP_MAX),y0+52,((W-100)/UP_MAX)-3,8); }
+  drawText('NOW  '+effect,30,y0+70,1,C.cream);
+  const maxed=lv>=UP_MAX;
+  drawBtn(buyR,false); ctx.fillStyle=maxed?C.gold:C.green; ctx.fillRect(buyR.x,buyR.y,buyR.w,3);
+  if(maxed){ drawText('MAXED',buyR.x+(buyR.w-textW('MAXED',1))/2,buyR.y+8,1,C.gold); }
+  else { drawText('UPGRADE',buyR.x+(buyR.w-textW('UPGRADE',1))/2,buyR.y+6,1,C.white);
+         const ct=upCost(lv)+' C'; drawText(ct,buyR.x+(buyR.w-textW(ct,1))/2,buyR.y+22,1,C.gold); }
+}
+function drawLocker(){
+  vgrad(0,0,W,H,'#10204a','#040814');
+  drawTab(LK_TAB1,'GEAR',lockerTab===0); drawTab(LK_TAB2,'UPGRADES',lockerTab===1);
+  textC('COINS  '+PROFILE.coins,90,1,C.gold);
+  if(lockerTab===0){
+    ctx.save(); ctx.translate(W/2,176); ctx.scale(2,2); drawShooter(0,0,false); ctx.restore();
+    drawBtn(LK_PARTL,false); glyph('LT',LK_PARTL.x+9,LK_PARTL.y+9,3,C.cream);
+    drawBtn(LK_PARTR,false); glyph('GT',LK_PARTR.x+9,LK_PARTR.y+9,3,C.cream);
+    const part=PARTS[lockerPart];
+    textC(part.label,217,2,C.cream);
+    if(part.key==='num'){
+      drawBtn(LK_MINUS,false); drawText('-',LK_MINUS.x+(LK_MINUS.w-textW('-',3))/2,LK_MINUS.y+14,3,C.white);
+      const ns=''+PROFILE.num; drawText(ns,W/2-textW(ns,5)/2,262,5,C.yellow);
+      drawBtn(LK_PLUS,false); drawText('+',LK_PLUS.x+(LK_PLUS.w-textW('+',3))/2,LK_PLUS.y+14,3,C.white);
+    } else {
+      for(let i=0;i<PALETTE.length;i++){ const r=lkSwatch(i), on=(PROFILE[part.key]===PALETTE[i]);
+        ctx.fillStyle=PALETTE[i]; ctx.fillRect(r.x,r.y,r.w,r.h);
+        ctx.strokeStyle=on?C.white:'rgba(0,0,0,0.4)'; ctx.lineWidth=on?3:1; ctx.strokeRect(r.x+0.5,r.y+0.5,r.w-1,r.h-1); }
+    }
+  } else {
+    drawCard(150,'STICK','SHOOT FASTER',PROFILE.stickLv,'+'+(3*PROFILE.stickLv)+'% SHOT SPEED',LK_BUY1);
+    drawCard(300,'TRAINING','MOVE & AIM FASTER',PROFILE.trainLv,'+'+(4*PROFILE.trainLv)+'% SPEED',LK_BUY2);
+  }
+  drawBtn(LK_BACK,false); ctx.fillStyle=C.yellow; ctx.fillRect(LK_BACK.x,LK_BACK.y,LK_BACK.w,3);
+  drawText('SAVE & BACK',LK_BACK.x+(LK_BACK.w-textW('SAVE & BACK',2))/2,LK_BACK.y+14,2,C.white);
+}
+
 // ====================== MAIN LOOP (crash-safe) ======================
 function frameStep(){
   ctx.fillStyle='#000'; ctx.fillRect(0,0,W,H);
   if(state===S.MENU){ menuUpdate(); drawMenu(); }
   else if(state===S.HELP){ helpUpdate(); drawHelp(); }
+  else if(state===S.LOCKER){ lockerUpdate(); drawLocker(); }
   else if(state===S.G1){ g1Update(); g1Draw(); }
   else if(state===S.OVER){ overUpdate(); drawOver(); }
   else if(state===S.SURVEY){ surveyUpdate(); drawSurvey(); }
