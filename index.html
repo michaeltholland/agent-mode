@@ -150,8 +150,19 @@ function unlockAudio(){ const a=ac(); if(a&&a.state==='suspended') a.resume(); }
 function beep(f,d,t,v){ const a=ac(); if(!a) return; try{ const o=a.createOscillator(),g=a.createGain();
   o.type=t||'square'; o.frequency.value=f; g.gain.value=v||0.05; o.connect(g); g.connect(a.destination);
   const n=a.currentTime; o.start(n); g.gain.setValueAtTime(g.gain.value,n); g.gain.exponentialRampToValueAtTime(0.0001,n+(d||0.1)); o.stop(n+(d||0.1)); }catch(e){} }
+function foulSound(){ const a=ac(); if(!a) return; try{
+  // classic sad-trombone "wah wah wah waaaah" - brassy sawtooth notes that each bend down
+  const notes=[[392,370,0.22],[349,330,0.22],[311,294,0.24],[262,180,0.75]];
+  let t=a.currentTime;
+  for(const [f0,f1,d] of notes){ const o=a.createOscillator(), g=a.createGain();
+    o.type='sawtooth'; o.connect(g); g.connect(a.destination);
+    o.frequency.setValueAtTime(f0,t); o.frequency.linearRampToValueAtTime(f1,t+d);
+    g.gain.setValueAtTime(0.0001,t); g.gain.linearRampToValueAtTime(0.075,t+0.03); g.gain.exponentialRampToValueAtTime(0.0001,t+d);
+    o.start(t); o.stop(t+d+0.03); t+=d*0.9; }
+}catch(e){} }
 const SFX={
   shoot:()=>{ beep(720,0.06,'square',0.05); setTimeout(()=>beep(420,0.05),40); },
+  foul:()=>foulSound(),
   goal:()=>{ beep(523,0.08); setTimeout(()=>beep(659,0.08),80); setTimeout(()=>beep(880,0.16),160); },
   save:()=>beep(120,0.22,'sawtooth',0.06),
   wide:()=>beep(180,0.16,'sine',0.05),
@@ -254,6 +265,19 @@ function drawShooter(x,y,wind){
   ctx.strokeStyle=C.skin; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(x+6,y-12); ctx.lineTo(x+13+sw,y-20); ctx.stroke();
   ctx.strokeStyle=P.shaft; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(x+13+sw,y-20); ctx.lineTo(x+24+sw,y-42); ctx.stroke();
   ctx.fillStyle=P.head; ctx.fillRect(x+22+sw,y-50,8,8); ctx.fillStyle=shade(P.head,-0.25); ctx.fillRect(x+23+sw,y-49,6,6);
+}
+function drawRef(t){
+  const ease=1-Math.pow(1-clamp(t/40,0,1),2), rx=lerp(W+30,208,ease), ry=258, run=Math.sin(t*0.5)*3;
+  ctx.fillStyle='#15171c'; ctx.fillRect(rx-4,ry,3,10+run); ctx.fillRect(rx+1,ry,3,10-run);     // legs
+  ctx.fillStyle='#0a0a0c'; ctx.fillRect(rx-5,ry+9+run,5,3); ctx.fillRect(rx+1,ry+9-run,5,3);    // shoes
+  for(let i=0;i<5;i++){ ctx.fillStyle=i%2?'#1a1a1e':'#e8eaf0'; ctx.fillRect(rx-6+i*2.4,ry-13,2.4,14); } // striped shirt
+  ctx.strokeStyle=C.skin; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(rx-5,ry-9); ctx.lineTo(rx-11,ry-16-Math.max(0,9-t*0.4)); ctx.stroke(); // raised arm
+  ctx.fillStyle=C.skin; ctx.fillRect(rx-3,ry-21,7,7);                                            // head
+  ctx.fillStyle='#0a0a0c'; ctx.fillRect(rx-5,ry-24,10,4); ctx.fillRect(rx-9,ry-21,5,2);          // cap + brim
+  if(t>=16){ const ft=t-16, p=clamp(ft/46,0,1), fx=lerp(rx-10,150,p), fy=242-Math.sin(p*Math.PI)*80;
+    ctx.save(); ctx.translate(fx,fy); ctx.rotate(ft*0.5);
+    ctx.strokeStyle='#b9933f'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(0,-7); ctx.lineTo(0,7); ctx.stroke();
+    ctx.fillStyle=C.yellow; ctx.fillRect(0,-7,10,9); ctx.fillStyle=shade('#ffd23f',-0.2); ctx.fillRect(0,-1,10,3); ctx.restore(); }
 }
 function drawGoalie(x,baseY,bw,bh,lunge,fh,fhOpen){
   const top=baseY-bh, upperH=Math.round(bh*0.52), legTop=top+upperH, gap=18, legW=(bw-gap)/2;
@@ -382,7 +406,7 @@ function drawMenu(){
 let helpPage=0;
 const HELP=[
   {title:'HOW TO PLAY',lines:['SCORE ON A LIVE GOALIE.','HE BLOCKS THE NET WITH','HIS BODY (THE DARK ZONE).','','TWO THUMB-STICKS DOWN','IN THE BOTTOM CORNERS.','','TAP THROUGH FOR CONTROLS.']},
-  {title:'CONTROLS',lines:['LEFT STICK = MOVE ANY WAY.','GET AN ANGLE OR CLOSE IN -','BUT THE BLUE CREASE AT THE','GOAL IS OFF-LIMITS.','','RIGHT STICK = AIM THE','SHOT. LIFT YOUR THUMB','OFF TO FIRE THE BALL.','','(DESKTOP: WASD MOVE,','ARROWS AIM, SPACE SHOOT)']},
+  {title:'CONTROLS',lines:['LEFT STICK = MOVE ANY WAY.','GET AN ANGLE OR CLOSE IN -','BUT CROSS THE BLUE CREASE','AND THE REF FLAGS A FOUL','(TURNOVER - SHOT LOST).','','RIGHT STICK = AIM THE SHOT.','LIFT YOUR THUMB TO FIRE.','','(DESKTOP: WASD MOVE,','ARROWS AIM, SPACE SHOOT)']},
   {title:'SCORING',lines:['RETICLE GREEN = OPEN,','RED = COVERED, GREY =','OFF THE NET (YOU CAN MISS).','','THE FIVE HOLE OPENS AND','SHUTS - SHOOT IT WHILE THE','GREEN RING IS SHOWING.','','TOP CORNER = 5   LOW = 4','FAR SIDE = 3   FIVE HOLE = 5','10 SHOTS - HE GETS TOUGHER.']}
 ];
 function helpUpdate(){ let p; while((p=consumeTap())){ if(hit(p,{x:12,y:12,w:80,h:36})){ SFX.ui(); state=S.MENU; return; } helpPage++; SFX.ui(); if(helpPage>=HELP.length){ state=S.MENU; return; } } }
@@ -409,11 +433,7 @@ const SHOT_CLOCK=300;                           // 5 seconds at 60fps to get the
 // the attacker roams the field; the CREASE (half-circle at the goal mouth) is off-limits
 const SH_MINX=38, SH_MAXX=W-38, SH_MINY=232, SH_MAXY=424;
 const CREASE={cx:AIM_CX, cy:NET1.y+NET1.h, r:74};
-function avoidCrease(x,y){
-  const dx=x-CREASE.cx, dy=y-CREASE.cy;       // only the field-side semicircle blocks you
-  if(dy>0){ const dd=Math.hypot(dx,dy); if(dd<CREASE.r){ const k=CREASE.r/(dd||0.001); return {x:CREASE.cx+dx*k, y:CREASE.cy+dy*k}; } }
-  return {x,y};
-}
+function inCrease(x,y){ return (y-CREASE.cy)>0 && dist(x,y,CREASE.cx,CREASE.cy)<CREASE.r; }
 function g1Init(){
   G1.shots=10; G1.score=0; G1.goals=0;
   G1.aimX=AIM_CX; G1.aimY=AIM_CY;
@@ -435,6 +455,7 @@ function g1Covered(tx,ty,gk){
   return true;
 }
 function g1NextShot(){ if(G1.shots<=0){ endGame(G1.score); return; } G1.phase='aim'; G1.ball=null; G1.clock=SHOT_CLOCK; }
+function g1Foul(){ G1.phase='foul'; G1.foulT=0; G1.ball=null; G1.streak=0; G1.shake=8; SFX.foul(); }
 function g1Fire(){
   const sx=G1.shooterX, sy=G1.shooterY-44, tx=G1.aimX, ty=G1.aimY, d=dist(sx,sy,tx,ty)||1, spd=stickSpd();
   G1.ball={x:sx,y:sy,vx:(tx-sx)/d*spd,vy:(ty-sy)/d*spd,tx,ty,t:0,total:Math.max(8,d/spd)};
@@ -450,13 +471,15 @@ function g1Update(){
   if(G1.tut){ if(consumeTap()){ G1.tut=false; resetSticks(); } rReleased=false; return; }
   const gk=G1.gk, mn=NET1.x+gk.bw/2+2, mx=NET1.x+NET1.w-gk.bw/2-2;
   // LEFT STICK / WASD: move the attacker in any direction (swings the angle, closes the gap)
-  const moveDx = sL.dx + (keys.moveR?1:0) - (keys.moveL?1:0);
-  const moveDy = sL.dy + (keys.moveD?1:0) - (keys.moveU?1:0);
-  const mspd=2.8*trainMul();
-  const nmx=clamp(G1.shooterX + moveDx*mspd, SH_MINX, SH_MAXX);
-  const nmy=clamp(G1.shooterY + moveDy*mspd, SH_MINY, SH_MAXY);
-  const cp=avoidCrease(nmx,nmy);              // can't step inside the crease
-  G1.shooterX=clamp(cp.x,SH_MINX,SH_MAXX); G1.shooterY=clamp(cp.y,SH_MINY,SH_MAXY);
+  if(G1.phase!=='foul'){
+    const moveDx = sL.dx + (keys.moveR?1:0) - (keys.moveL?1:0);
+    const moveDy = sL.dy + (keys.moveD?1:0) - (keys.moveU?1:0);
+    const mspd=2.8*trainMul();
+    G1.shooterX=clamp(G1.shooterX + moveDx*mspd, SH_MINX, SH_MAXX);
+    G1.shooterY=clamp(G1.shooterY + moveDy*mspd, SH_MINY, SH_MAXY);
+    // cross the crease line = whistle. ref comes out and flags you
+    if(G1.phase==='aim' && inCrease(G1.shooterX,G1.shooterY)) g1Foul();
+  }
   // goalie plays the angle: slides toward the side the shooter is on (sharper later)
   gk.idealX = clamp(AIM_CX + (G1.shooterX - W/2)*(0.47+d*0.2), mn, mx);
 
@@ -517,6 +540,10 @@ function g1Update(){
   } else if(G1.phase==='result'){
     const b=G1.ball; if(b&&b.bounce){ b.x+=b.vx; b.y+=b.vy; b.vy+=0.3; }
     if(--G1.resT<=0) g1NextShot();
+  } else if(G1.phase==='foul'){
+    G1.foulT++;
+    while(consumeTap()){}   // ignore taps during the whistle
+    if(G1.foulT>=120){ G1.shooterY=330; G1.shooterX=clamp(G1.shooterX,SH_MINX,SH_MAXX); G1.shots--; g1NextShot(); }
   }
   rReleased=false;   // only the aim phase consumes the release
   updateParts();
@@ -551,6 +578,7 @@ function g1Draw(){
   if(G1.ball&&!G1.ball.dead) drawBall(G1.ball.x,G1.ball.y,4);
   drawParts();
   drawShooter(G1.shooterX,G1.shooterY,G1.phase==='fly'&&frame%4<2);
+  if(G1.phase==='foul') drawRef(G1.foulT);
   ctx.restore();
   // twin joysticks
   const la=sL.id!==null||keys.moveL||keys.moveR;
@@ -572,7 +600,8 @@ function g1Draw(){
   }
   if(G1.streak>=2) textCS('COMBO x'+G1.streak,36,1,(frame%8<4?C.gold:C.yellow),C.black);
   if(G1.msgT>0) textCS(G1.msg,250+Math.sin(frame*0.3)*2,3,G1.msgC,C.black);
-  if(G1.tut) tutorial('GOALIE','LEFT MOVES YOU - RIGHT AIMS (LIFT=SHOOT)','STAY OUT OF THE BLUE CREASE');
+  if(G1.phase==='foul'){ textCS('FOUL!',150,5,(frame%8<4?C.red:C.yellow),C.black); textCS('CREASE VIOLATION',188,1,C.cream,C.black); textCS('TURNOVER - SHOT LOST',206,1,C.grey,C.black); }
+  if(G1.tut) tutorial('GOALIE','LEFT MOVES YOU - RIGHT AIMS (LIFT=SHOOT)','DONT CROSS THE CREASE = FOUL!');
 }
 
 // ====================== TUTORIAL ======================
