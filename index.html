@@ -573,18 +573,26 @@ function endGame(score){ over.score=score; over.t=0; over.best=HI.g1; over.nb=fa
   else state=S.OVER; }
 // badge-unlock toasts (shown over any screen)
 let toasts=[], toastT=0;
-function pushToast(name){ toasts.push(name); }
+function pushToast(body,head){ toasts.push({body:body,head:head||'BADGE UNLOCKED'}); }
 function drawToasts(){
   if(!toasts.length) return;
   if(toastT===0) SFX.big();
   toastT++;
-  const y=64, w=W-40, x=20;
+  const t=toasts[0], y=64, w=W-40, x=20;
   ctx.fillStyle='rgba(8,10,18,0.92)'; ctx.fillRect(x,y,w,40);
   ctx.fillStyle=C.gold; ctx.fillRect(x,y,w,3); ctx.fillRect(x,y+37,w,3);
   drawStar(x+22,y+20,11,true);
-  drawText('BADGE UNLOCKED',x+42,y+7,1,C.gold);
-  drawText(toasts[0],x+42,y+22,2,C.white);
+  drawText(t.head,x+42,y+7,1,C.gold);
+  drawText(t.body,x+42,y+22,2,C.white);
   if(toastT>150){ toasts.shift(); toastT=0; }
+}
+const SHARE_URL='https://michaeltholland.github.io/agent-mode/';
+function shareGame(score){
+  const nav=(typeof navigator!=='undefined')?navigator:null;
+  const msg=score?('I scored '+score+' on LAX TAPPER! Can you beat me?'):'Score on the goalie - play LAX TAPPER!';
+  if(nav&&nav.share){ try{ const r=nav.share({title:'LAX TAPPER',text:msg,url:SHARE_URL}); if(r&&r.catch) r.catch(()=>{}); }catch(e){} return; }
+  if(nav&&nav.clipboard&&nav.clipboard.writeText){ nav.clipboard.writeText(msg+' '+SHARE_URL).then(()=>pushToast('LINK COPIED!','SHARE')).catch(()=>pushToast('LINK COPIED!','SHARE')); return; }
+  pushToast('LINK COPIED!','SHARE');
 }
 function drawMedal(cx,cy,m,r){
   r=r||22;
@@ -597,8 +605,10 @@ function drawMedal(cx,cy,m,r){
 const HW=(W-60)/2;
 const OV_PLAY={x:24,y:H-168,w:HW,h:48}, OV_MENU={x:36+HW,y:H-168,w:HW,h:48};
 const OV_LB={x:24,y:H-110,w:HW,h:42}, OV_FB={x:36+HW,y:H-110,w:HW,h:42};
+const OV_SHARE={x:24,y:H-56,w:W-48,h:40};
 function overUpdate(){ over.t++; updateParts(); let p; while((p=consumeTap())){ if(over.t<=20) break;
   if(hit(p,OV_PLAY)){ g1Init(); state=S.G1; return; }
+  if(hit(p,OV_SHARE)){ shareGame(over.score); SFX.ui(); return; }
   if(hit(p,OV_LB)){ lbOpen('GAME'); return; }
   if(hit(p,OV_FB)){ surveyOpen('OVER'); return; }
   if(hit(p,OV_MENU)||p.x<0){ state=S.MENU; return; } } }
@@ -620,6 +630,8 @@ function drawOver(){
   drawText('RANKS',OV_LB.x+OV_LB.w/2-textW('RANKS',1)/2,OV_LB.y+16,1,C.cream);
   drawBtn(OV_FB,false); ctx.fillStyle=C.blue; ctx.fillRect(OV_FB.x,OV_FB.y,OV_FB.w,3);
   drawText('FEEDBACK',OV_FB.x+OV_FB.w/2-textW('FEEDBACK',1)/2,OV_FB.y+16,1,C.cream);
+  drawBtn(OV_SHARE,false); ctx.fillStyle='#46c2ff'; ctx.fillRect(OV_SHARE.x,OV_SHARE.y,OV_SHARE.w,3);
+  drawText('SHARE MY SCORE',OV_SHARE.x+OV_SHARE.w/2-textW('SHARE MY SCORE',2)/2,OV_SHARE.y+14,2,C.white);
 }
 
 // ====================== INITIALS ENTRY ======================
