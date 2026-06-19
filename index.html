@@ -138,12 +138,15 @@ function drawTextC(str, y, scale, color){
 // ---------- Input ----------
 let tap = false;           // edge-triggered: true for one frame on press
 let pressActive = false;
-function press(){ if(!pressActive){ tap = true; pressActive = true; } }
+function press(){ unlockAudio(); if(!pressActive){ tap = true; pressActive = true; } }
 function release(){ pressActive = false; }
 canvas.addEventListener('mousedown', e=>{ e.preventDefault(); press(); });
 window.addEventListener('mouseup', release);
 canvas.addEventListener('touchstart', e=>{ e.preventDefault(); press(); }, {passive:false});
 window.addEventListener('touchend', e=>{ e.preventDefault(); release(); }, {passive:false});
+// Block iOS Safari's double-tap-to-zoom on the canvas
+canvas.addEventListener('dblclick', e=>e.preventDefault());
+canvas.addEventListener('gesturestart', e=>e.preventDefault());
 window.addEventListener('keydown', e=>{
   if(e.code==='Space' || e.code==='Enter'){ e.preventDefault(); press(); }
 });
@@ -155,6 +158,8 @@ function consumeTap(){ const t = tap; tap = false; return t; }
 // ---------- Sound (WebAudio beeps) ----------
 let actx = null;
 function ac(){ if(!actx){ try{ actx = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} } return actx; }
+// iOS Safari starts AudioContext suspended; resume it on the first user gesture.
+function unlockAudio(){ const a = ac(); if(a && a.state === 'suspended'){ a.resume(); } }
 function beep(freq, dur, type, vol){
   const a = ac(); if(!a) return;
   try{
