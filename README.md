@@ -7,21 +7,27 @@ A single-player, one-button ("tapper") lacrosse arcade game. Open
 `index.html` in any browser. No build step, no dependencies. Works with
 **tap / click / spacebar**.
 
-### Two games (pick from the menu)
+Built mobile-first: the canvas scales up to fill a phone screen, with a
+16-bit style (shaded sprites, gradients, LED scoreboard). There's a
+built-in **HOW TO PLAY** guide plus a first-time tutorial overlay for each
+game.
 
-**1. Goalie Shootout** — A reticle sweeps across the goal mouth while a
-goalie patrols it. Tap to shoot the ball where the reticle is pointing.
-Beat the goalie to score. You get 10 shots, and the goalie gets faster and
-the net coverage tighter as you rack up goals. Most goals wins.
+### Two games (pick from the menu — tap a game to start)
 
-**2. Skee Lacrosse** — Skee-ball with a lacrosse stick. A power meter
-oscillates up and down; tap to launch the ball up the lane. Higher power
-lands the ball in the farther, higher-scoring rings (10 / 20 / 30 / 40 / 50
-/ 100). You get 9 balls. Land back-to-back high rings for a combo bonus.
-Highest total wins.
+**1. Goalie Net** — Modeled on a lacrosse shooting target: an orange-framed
+goal with a black tarp and white cut-out holes. A crosshair drifts over the
+net; tap to fire. Put the ball through a hole to score — **corners = 5 pts,
+edge holes = 3 pts**. Hit the tarp and it's a save. You get 10 shots.
 
-### Menu controls
-- **Single tap** — switch between the two games
-- **Double tap** (or hold) — start the highlighted game
+**2. Skee Ball** — A real skee-ball cabinet: salmon lane, concentric
+**10 / 20** loops, center **30 / 40 / 50** holes, and **100** holes in the
+top corners, under a "SKEE BALL" scoreboard with an LED score. A power bar
+slides up and down — tap to stop it. Higher power travels farther up the
+lane for more points; nail the very top to reach the 100 corner. 9 balls.
+
+### Controls
+- **Tap / click** a menu button to start that game or open the guide
+- **Tap / click / spacebar** to shoot or to stop the power bar
+- Desktop: **arrow keys** move the menu selection, **Enter/Space** confirms
 
 High scores for each game are saved in your browser (localStorage).
