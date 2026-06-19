@@ -329,7 +329,8 @@ const MENU_BTNS=[
   {label:'HOW TO PLAY', r:{x:24,y:316,w:HWg,h:50},       go:()=>{ helpPage=0; state=S.HELP; }},
   {label:'RANKS',       r:{x:36+HWg,y:316,w:HWg,h:50},   go:()=>{ lbOpen('MENU'); }},
   {label:'BADGES',      r:{x:24,y:374,w:HWg,h:50},       go:()=>{ state=S.BADGES; }},
-  {label:'FEEDBACK',    r:{x:36+HWg,y:374,w:HWg,h:50},   go:()=>{ surveyOpen('MENU'); }}
+  {label:'FEEDBACK',    r:{x:36+HWg,y:374,w:HWg,h:50},   go:()=>{ surveyOpen('MENU'); }},
+  {label:'SHARE GAME',  r:{x:24,y:432,w:W-48,h:44},      go:()=>{ shareGame(0); }}
 ];
 function menuUpdate(){
   let p; while((p=consumeTap())){
@@ -390,6 +391,7 @@ const AIM_EX=NET1.w/2+22, AIM_EY=NET1.h/2+20;   // reaches past the posts so you
 const AIM_MINX=NET1.x-26, AIM_MAXX=NET1.x+NET1.w+26;
 const AIM_MINY=NET1.y-26, AIM_MAXY=NET1.y+NET1.h+30;
 const FH_OPEN=80, FH_SHUT=170;                  // five hole: ~1.3s open, ~2.8s shut
+const SHOT_CLOCK=300;                           // 5 seconds at 60fps to get the shot off
 // the attacker roams the field; the CREASE (half-circle at the goal mouth) is off-limits
 const SH_MINX=38, SH_MAXX=W-38, SH_MINY=232, SH_MAXY=424;
 const CREASE={cx:AIM_CX, cy:NET1.y+NET1.h, r:74};
@@ -402,7 +404,7 @@ function g1Init(){
   G1.shots=10; G1.score=0; G1.goals=0;
   G1.aimX=AIM_CX; G1.aimY=AIM_CY;
   G1.gk={x:AIM_CX,idealX:AIM_CX,bw:64,bh:134,reach:16,lunge:0};
-  G1.phase='aim'; G1.ball=null; G1.shake=0;
+  G1.phase='aim'; G1.ball=null; G1.shake=0; G1.clock=SHOT_CLOCK;
   G1.msg=''; G1.msgT=0; G1.msgC=C.white; G1.tut=true;
   G1.shooterX=W/2; G1.shooterY=330;
   G1.fhT=(Math.random()*(FH_OPEN+FH_SHUT))|0; G1.fhOpen=false;
@@ -418,7 +420,7 @@ function g1Covered(tx,ty,gk){
   if(G1.fhOpen && dist(tx,ty,fh.x,fh.y) < fh.r) return false; // ...except through the legs WHEN OPEN
   return true;
 }
-function g1NextShot(){ if(G1.shots<=0){ endGame(G1.score); return; } G1.phase='aim'; G1.ball=null; }
+function g1NextShot(){ if(G1.shots<=0){ endGame(G1.score); return; } G1.phase='aim'; G1.ball=null; G1.clock=SHOT_CLOCK; }
 function g1Fire(){
   const sx=G1.shooterX, sy=G1.shooterY-44, tx=G1.aimX, ty=G1.aimY, d=dist(sx,sy,tx,ty)||1, spd=9.5;
   G1.ball={x:sx,y:sy,vx:(tx-sx)/d*spd,vy:(ty-sy)/d*spd,tx,ty,t:0,total:Math.max(8,d/spd)};
@@ -445,17 +447,26 @@ function g1Update(){
 
   if(G1.phase==='aim'){
     gk.x += (gk.idealX-gk.x)*(0.055+d*0.055) + Math.sin(frame*0.05)*(0.4+d*0.5); gk.x=clamp(gk.x,mn,mx);
-    // RIGHT STICK aims; release to shoot
-    if(sR.id!==null){
-      G1.aimX = clamp(AIM_CX + sR.dx*AIM_EX, AIM_MINX, AIM_MAXX);
-      G1.aimY = clamp(AIM_CY + sR.dy*AIM_EY, AIM_MINY, AIM_MAXY);
-    } else if(keys.aimL||keys.aimR||keys.aimU||keys.aimD){
-      G1.aimX = clamp(G1.aimX + ((keys.aimR?1:0)-(keys.aimL?1:0))*3.4, AIM_MINX, AIM_MAXX);
-      G1.aimY = clamp(G1.aimY + ((keys.aimD?1:0)-(keys.aimU?1:0))*3.4, AIM_MINY, AIM_MAXY);
+    G1.clock--;
+    if(G1.clock<=0){
+      // shot-clock violation: this shot is burned
+      G1.msg='SHOT CLOCK!'; G1.msgC=C.red; G1.msgT=72; G1.shake=7; G1.streak=0;
+      beep(150,0.35,'sawtooth',0.06); G1.shots--; G1.ball=null; G1.phase='result'; G1.resT=42;
+      let p; while(consumeTap()){}   // drop any taps so they don't leak into the next shot
+    } else {
+      if(G1.clock<=120 && G1.clock%60===0) beep(520,0.07,'square',0.05);   // tick the last 2s
+      // RIGHT STICK aims; release to shoot
+      if(sR.id!==null){
+        G1.aimX = clamp(AIM_CX + sR.dx*AIM_EX, AIM_MINX, AIM_MAXX);
+        G1.aimY = clamp(AIM_CY + sR.dy*AIM_EY, AIM_MINY, AIM_MAXY);
+      } else if(keys.aimL||keys.aimR||keys.aimU||keys.aimD){
+        G1.aimX = clamp(G1.aimX + ((keys.aimR?1:0)-(keys.aimL?1:0))*3.4, AIM_MINX, AIM_MAXX);
+        G1.aimY = clamp(G1.aimY + ((keys.aimD?1:0)-(keys.aimU?1:0))*3.4, AIM_MINY, AIM_MAXY);
+      }
+      let fire=rReleased;
+      let p; while((p=consumeTap())){ if(p.x<0) fire=true; }   // space = shoot; drain the rest
+      if(fire) g1Fire();
     }
-    let fire=rReleased;
-    let p; while((p=consumeTap())){ if(p.x<0) fire=true; }   // space = shoot; drain the rest
-    if(fire) g1Fire();
   } else if(G1.phase==='fly'){
     const b=G1.ball; b.x+=b.vx; b.y+=b.vy; b.t++;
     const lc=2.2+d*1.65; const dx=b.tx-gk.x; gk.x=clamp(gk.x+clamp(dx,-lc,lc),mn,mx); gk.lunge=clamp(dx*0.4,-6,6);
@@ -536,7 +547,14 @@ function g1Draw(){
   drawText('SCORE',8,4,1,C.grey); drawText(''+G1.score,8,13,2,C.white);
   drawText('GOALS',W/2-16,4,1,C.grey); drawText(G1.goals+'/10',W/2-16,13,2,C.green);
   drawText('SHOTS',W-58,4,1,C.grey); drawText(''+G1.shots,W-30,13,2,C.yellow);
-  if(G1.streak>=2) textCS('COMBO x'+G1.streak,32,1,(frame%8<4?C.gold:C.yellow),C.black);
+  // shot clock — depleting bar under the HUD, flashes red in the final 1.25s
+  if(!G1.tut && (G1.phase==='aim'||G1.phase==='fly')){
+    const frac=clamp(G1.clock/SHOT_CLOCK,0,1), cw=W-12;
+    ctx.fillStyle='rgba(0,0,0,0.45)'; ctx.fillRect(6,27,cw,4);
+    const col=frac>0.5?C.green:frac>0.25?C.yellow:C.red;
+    ctx.fillStyle=(frac<=0.25&&frame%8<4)?C.white:col; ctx.fillRect(6,27,cw*frac,4);
+  }
+  if(G1.streak>=2) textCS('COMBO x'+G1.streak,36,1,(frame%8<4?C.gold:C.yellow),C.black);
   if(G1.msgT>0) textCS(G1.msg,250+Math.sin(frame*0.3)*2,3,G1.msgC,C.black);
   if(G1.tut) tutorial('GOALIE','LEFT MOVES YOU - RIGHT AIMS (LIFT=SHOOT)','STAY OUT OF THE BLUE CREASE');
 }
@@ -630,8 +648,10 @@ function drawOver(){
   drawText('RANKS',OV_LB.x+OV_LB.w/2-textW('RANKS',1)/2,OV_LB.y+16,1,C.cream);
   drawBtn(OV_FB,false); ctx.fillStyle=C.blue; ctx.fillRect(OV_FB.x,OV_FB.y,OV_FB.w,3);
   drawText('FEEDBACK',OV_FB.x+OV_FB.w/2-textW('FEEDBACK',1)/2,OV_FB.y+16,1,C.cream);
-  drawBtn(OV_SHARE,false); ctx.fillStyle='#46c2ff'; ctx.fillRect(OV_SHARE.x,OV_SHARE.y,OV_SHARE.w,3);
-  drawText('SHARE MY SCORE',OV_SHARE.x+OV_SHARE.w/2-textW('SHARE MY SCORE',2)/2,OV_SHARE.y+14,2,C.white);
+  const nbShare=over.nb&&frame%12<6;
+  drawBtn(OV_SHARE,over.nb); ctx.fillStyle=nbShare?C.gold:'#46c2ff'; ctx.fillRect(OV_SHARE.x,OV_SHARE.y,OV_SHARE.w,3);
+  const slab=over.nb?'SHARE NEW BEST!':'SHARE MY SCORE';
+  drawText(slab,OV_SHARE.x+OV_SHARE.w/2-textW(slab,2)/2,OV_SHARE.y+14,2,nbShare?C.gold:C.white);
 }
 
 // ====================== INITIALS ENTRY ======================
@@ -662,6 +682,7 @@ function drawEntry(){
 // ====================== LEADERBOARD ======================
 function lbUpdate(){ let p; while((p=consumeTap())){
   if(hit(p,OV_PLAY)){ g1Init(); state=S.G1; return; }
+  if(hit(p,OV_SHARE)){ shareGame(HI.g1); SFX.ui(); return; }
   if(hit(p,OV_MENU)||p.x<0){ state=S.MENU; return; } }}
 function drawLeaderboard(){
   vgrad(0,0,W,H,'#101a3a','#04060e');
@@ -681,6 +702,8 @@ function drawLeaderboard(){
   drawText('PLAY',OV_PLAY.x+OV_PLAY.w/2-textW('PLAY',2)/2,OV_PLAY.y+16,2,C.white);
   drawBtn(OV_MENU,false); ctx.fillStyle=C.yellow; ctx.fillRect(OV_MENU.x,OV_MENU.y,OV_MENU.w,3);
   drawText('MENU',OV_MENU.x+OV_MENU.w/2-textW('MENU',2)/2,OV_MENU.y+16,2,C.white);
+  drawBtn(OV_SHARE,false); ctx.fillStyle='#46c2ff'; ctx.fillRect(OV_SHARE.x,OV_SHARE.y,OV_SHARE.w,3);
+  drawText('CHALLENGE A FRIEND',OV_SHARE.x+OV_SHARE.w/2-textW('CHALLENGE A FRIEND',1)/2,OV_SHARE.y+15,1,C.cream);
 }
 
 // ====================== SURVEY / FEEDBACK ======================
