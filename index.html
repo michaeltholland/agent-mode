@@ -173,6 +173,26 @@ try{ LB=JSON.parse(localStorage.getItem('lax4_lb')||'[]')||[]; if(!Array.isArray
 function lbSave(){ try{ localStorage.setItem('lax4_lb',JSON.stringify(LB)); }catch(e){} }
 function lbQualifies(s){ return s>0 && (LB.length<10 || s>LB[LB.length-1].s); }
 function lbInsert(n,s){ LB.push({n:n,s:s}); LB.sort((a,b)=>b.s-a.s); LB=LB.slice(0,10); lbSave(); return LB.indexOf(LB.find(e=>e.n===n&&e.s===s)); }
+// ---- global leaderboard (Supabase) ----
+const SUPA_URL='https://xmmhaylumsdktljmxjgv.supabase.co';
+const SUPA_KEY='sb_publishable_MkMrj9PwzdNqUIua69e7Gg_F1uydGSt';
+const SUPA_HEAD={apikey:SUPA_KEY,Authorization:'Bearer '+SUPA_KEY};
+let lbStatus='local';   // local | loading | global | offline
+function lbFetch(){
+  if(typeof fetch!=='function') return;
+  lbStatus='loading';
+  fetch(SUPA_URL+'/rest/v1/scores?select=name,score&order=score.desc&limit=10',{headers:SUPA_HEAD})
+    .then(r=>r.ok?r.json():Promise.reject(r.status))
+    .then(rows=>{ if(Array.isArray(rows)){ LB=rows.map(r=>({n:(''+r.name).slice(0,3).toUpperCase(),s:r.score|0})); lbSave(); lbStatus='global'; } })
+    .catch(()=>{ lbStatus='offline'; });
+}
+function lbSubmit(name,score){
+  if(typeof fetch!=='function') return;
+  fetch(SUPA_URL+'/rest/v1/scores',{method:'POST',headers:Object.assign({'Content-Type':'application/json',Prefer:'return=minimal'},SUPA_HEAD),body:JSON.stringify({name:name,score:score})})
+    .then(r=>{ if(r.ok) lbFetch(); else lbStatus='offline'; })
+    .catch(()=>{ lbStatus='offline'; });
+}
+lbFetch();   // prime the world board on load
 // career stats + badges
 let STATS={games:0,goals:0,bestCombo:0,fiveHoles:0,topCorners:0,perfects:0};
 try{ STATS=Object.assign(STATS, JSON.parse(localStorage.getItem('lax4_stats')||'{}')||{}); }catch(e){}
@@ -516,8 +536,8 @@ function tutorial(title,l1,l2){
 // ====================== GAME OVER ======================
 let over={score:0,best:0,nb:false,t:0};
 let entry={ini:[0,0,0],score:0};
-let lb={from:'MENU',newRank:-1};
-function lbOpen(from){ lb.from=from; lb.newRank=-1; state=S.LB; }
+let lb={from:'MENU',newRank:-1,mine:null};
+function lbOpen(from){ lb.from=from; if(from!=='GAME') lb.mine=null; lbFetch(); state=S.LB; }
 function endGame(score){ over.score=score; over.t=0; over.best=HI.g1; over.nb=false;
   if(score>HI.g1){ over.nb=true; HI.g1=score; over.best=score; saveHi(); spawn(W/2,180,40,[C.yellow,C.green,C.gold,C.white]); }
   STATS.games++; STATS.goals+=G1.goals; STATS.bestCombo=Math.max(STATS.bestCombo,G1.maxCombo);
@@ -589,7 +609,7 @@ for(let i=0;i<3;i++){ const x=67+i*60; EN_BOX[i]={x,y:198,w:46,h:50}; EN_UP[i]={
 const EN_DONE={x:80,y:320,w:W-160,h:48};
 function entryUpdate(){ let p; while((p=consumeTap())){
   for(let i=0;i<3;i++){ if(hit(p,EN_UP[i])){ entry.ini[i]=(entry.ini[i]+1)%26; SFX.ui(); } if(hit(p,EN_DN[i])){ entry.ini[i]=(entry.ini[i]+25)%26; SFX.ui(); } }
-  if(hit(p,EN_DONE)||p.x<0){ const name=entry.ini.map(c=>String.fromCharCode(65+c)).join(''); lb.newRank=lbInsert(name,entry.score); lb.from='GAME'; SFX.start(); state=S.LB; return; }
+  if(hit(p,EN_DONE)||p.x<0){ const name=entry.ini.map(c=>String.fromCharCode(65+c)).join(''); lbInsert(name,entry.score); lb.mine={n:name,s:entry.score}; lb.from='GAME'; lbSubmit(name,entry.score); SFX.start(); state=S.LB; return; }
 }}
 function drawEntry(){
   vgrad(0,0,W,H,'#101a3a','#04060e');
@@ -615,9 +635,10 @@ function lbUpdate(){ let p; while((p=consumeTap())){
 function drawLeaderboard(){
   vgrad(0,0,W,H,'#101a3a','#04060e');
   textCS('LEADERBOARD',54,3,C.gold,C.black);
-  textC('TOP 10 ON THIS DEVICE',84,1,C.grey);
-  if(LB.length===0){ textC('NO SCORES YET -',150,1,C.cream); textC('GO BURY SOME CORNERS!',170,1,C.cream); }
-  else { let y=104; for(let i=0;i<LB.length;i++){ const e=LB[i], hl=(i===lb.newRank);
+  const sub=lbStatus==='loading'?'LOADING WORLD RANKS...':lbStatus==='global'?'TOP 10 IN THE WORLD':lbStatus==='offline'?'OFFLINE - LAST SEEN RANKS':'TOP 10';
+  textC(sub,84,1,lbStatus==='global'?C.green:C.grey);
+  if(LB.length===0){ if(lbStatus==='loading'){ textC('LOADING...',150,1,C.cream); } else { textC('NO SCORES YET -',150,1,C.cream); textC('GO BURY SOME CORNERS!',170,1,C.cream); } }
+  else { let y=104; for(let i=0;i<LB.length;i++){ const e=LB[i], hl=(lb.mine&&e.n===lb.mine.n&&e.s===lb.mine.s);
     if(hl){ ctx.fillStyle='rgba(255,210,63,0.16)'; ctx.fillRect(28,y-3,W-56,24); }
     const col=hl?C.yellow:C.cream;
     drawText((i+1)+'.', 36, y, 2, hl?C.gold:C.grey);
