@@ -118,10 +118,10 @@ function up(id){
 }
 canvas.addEventListener('mousedown',e=>{ e.preventDefault(); const p=pt(e.clientX,e.clientY); down('m',p.x,p.y); });
 window.addEventListener('mousemove',e=>{ if(pointers['m']){ const p=pt(e.clientX,e.clientY); move('m',p.x,p.y); } });
-window.addEventListener('mouseup',()=>up('m'));
+window.addEventListener('mouseup',e=>{ const p=pt(e.clientX,e.clientY); up('m'); tryShareAt(p); });
 canvas.addEventListener('touchstart',e=>{ e.preventDefault(); for(const t of e.changedTouches){ const p=pt(t.clientX,t.clientY); down(t.identifier,p.x,p.y); } },{passive:false});
 canvas.addEventListener('touchmove',e=>{ e.preventDefault(); for(const t of e.changedTouches){ const p=pt(t.clientX,t.clientY); move(t.identifier,p.x,p.y); } },{passive:false});
-canvas.addEventListener('touchend',e=>{ e.preventDefault(); for(const t of e.changedTouches) up(t.identifier); },{passive:false});
+canvas.addEventListener('touchend',e=>{ e.preventDefault(); for(const t of e.changedTouches){ up(t.identifier); tryShareAt(pt(t.clientX,t.clientY)); } },{passive:false});
 canvas.addEventListener('touchcancel',e=>{ for(const t of e.changedTouches) up(t.identifier); });
 canvas.addEventListener('dblclick',e=>e.preventDefault());
 canvas.addEventListener('gesturestart',e=>e.preventDefault());
@@ -398,6 +398,7 @@ function drawMenu(){
     ctx.fillStyle=sel?C.panelHi:C.panel; ctx.fillRect(b.x,b.y,b.w,b.h);
     ctx.fillStyle=sel?C.yellow:C.dgrey; ctx.fillRect(b.x,b.y,b.w,3); ctx.fillRect(b.x,b.y+b.h-3,b.w,3); ctx.fillRect(b.x,b.y,3,b.h); ctx.fillRect(b.x+b.w-3,b.y,3,b.h);
     drawText(MENU_BTNS[i].label,b.x+(b.w-textW(MENU_BTNS[i].label,sc))/2,b.y+(b.h-5*sc)/2,sc,sel?C.white:C.cream);
+    if(MENU_BTNS[i].label==='SHARE GAME') shareBtn={x:b.x,y:b.y,w:b.w,h:b.h,score:0};
   }
   textCS('TAP AN OPTION',H-18,1,C.cream,C.black);
 }
@@ -650,13 +651,18 @@ function drawToasts(){
   if(toastT>150){ toasts.shift(); toastT=0; }
 }
 const SHARE_URL='https://michaeltholland.github.io/agent-mode/';
+let lastShareT=0;            // dedupe: gesture handler + game-loop may both call
+let shareBtn=null;           // active share button rect (set each frame by the draw)
 function shareGame(score){
+  const now=Date.now(); if(now-lastShareT<1200) return; lastShareT=now;
   const nav=(typeof navigator!=='undefined')?navigator:null;
   const msg=score?('I scored '+score+' on LAX TAPPER! Can you beat me?'):'Score on the goalie - play LAX TAPPER!';
   if(nav&&nav.share){ try{ const r=nav.share({title:'LAX TAPPER',text:msg,url:SHARE_URL}); if(r&&r.catch) r.catch(()=>{}); }catch(e){} return; }
   if(nav&&nav.clipboard&&nav.clipboard.writeText){ nav.clipboard.writeText(msg+' '+SHARE_URL).then(()=>pushToast('LINK COPIED!','SHARE')).catch(()=>pushToast('LINK COPIED!','SHARE')); return; }
   pushToast('LINK COPIED!','SHARE');
 }
+// fire share straight from the touch/click gesture so iOS accepts the first tap
+function tryShareAt(p){ if(shareBtn && hit(p,shareBtn)) shareGame(shareBtn.score); }
 function drawMedal(cx,cy,m,r){
   r=r||22;
   ctx.fillStyle='#7a3b27'; ctx.fillRect(cx-3,cy-r-14,6,12); // ribbon
@@ -697,6 +703,7 @@ function drawOver(){
   drawBtn(OV_SHARE,over.nb); ctx.fillStyle=nbShare?C.gold:'#46c2ff'; ctx.fillRect(OV_SHARE.x,OV_SHARE.y,OV_SHARE.w,3);
   const slab=over.nb?'SHARE NEW BEST!':'SHARE MY SCORE';
   drawText(slab,OV_SHARE.x+OV_SHARE.w/2-textW(slab,2)/2,OV_SHARE.y+14,2,nbShare?C.gold:C.white);
+  shareBtn={x:OV_SHARE.x,y:OV_SHARE.y,w:OV_SHARE.w,h:OV_SHARE.h,score:over.score};
 }
 
 // ====================== INITIALS ENTRY ======================
@@ -749,6 +756,7 @@ function drawLeaderboard(){
   drawText('MENU',OV_MENU.x+OV_MENU.w/2-textW('MENU',2)/2,OV_MENU.y+16,2,C.white);
   drawBtn(OV_SHARE,false); ctx.fillStyle='#46c2ff'; ctx.fillRect(OV_SHARE.x,OV_SHARE.y,OV_SHARE.w,3);
   drawText('CHALLENGE A FRIEND',OV_SHARE.x+OV_SHARE.w/2-textW('CHALLENGE A FRIEND',1)/2,OV_SHARE.y+15,1,C.cream);
+  shareBtn={x:OV_SHARE.x,y:OV_SHARE.y,w:OV_SHARE.w,h:OV_SHARE.h,score:HI.g1};
 }
 
 // ====================== SURVEY / FEEDBACK ======================
@@ -897,7 +905,7 @@ function drawLocker(){
 
 // ====================== MAIN LOOP (crash-safe) ======================
 function frameStep(){
-  ctx.fillStyle='#000'; ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='#000'; ctx.fillRect(0,0,W,H); shareBtn=null;
   if(state===S.MENU){ menuUpdate(); drawMenu(); }
   else if(state===S.HELP){ helpUpdate(); drawHelp(); }
   else if(state===S.LOCKER){ lockerUpdate(); drawLocker(); }
