@@ -37,14 +37,8 @@ const C={
   skyTop:'#3a6ea5',skyBot:'#9ed0ee',
   grass1:'#2f9e44',grass2:'#268c3a',grass3:'#1f7a31',
   orange:'#ff8a1e',orangeHi:'#ffb347',orangeDk:'#c75a00',
-  tarp:'#16181f',tarpHi:'#262932',tarpDk:'#0c0d12',
-  hole:'#cfe9ff',holeRim:'#ffffff',
   mesh:'rgba(255,255,255,0.30)',
-  // goalie
   gk:'#e23b4e',gkHi:'#ff6276',gkDk:'#8d1f2c',pad:'#f0f2ff',
-  // skee cabinet
-  cab:'#1b2238',cabHi:'#2b3458',led:'#ff2b3a',ledDk:'#3a0a0e',ledBg:'#160305',
-  // shooter
   skin:'#ffce9e',jersey:'#15151c',jerseyHi:'#34343f',num:'#ffffff',
   helmet:'#f4f6ff',helmetSh:'#c3c8da',shaft:'#d7d9e0',crosse:'#b9a7d6',
   ball:'#fff7ea',ballSh:'#d9c9a8',
@@ -76,22 +70,25 @@ const FONT={
  '!':["00100","00100","00100","00000","00100"],'?':["01110","10001","00110","00000","00100"],
  ':':["00000","00100","00000","00100","00000"],'.':["00000","00000","00000","00000","00100"],
  '-':["00000","00000","11111","00000","00000"],'+':["00000","00100","01110","00100","00000"],
- '/':["00001","00010","00100","01000","10000"],'<':["00010","00100","01000","00100","00010"],
- '>':["01000","00100","00010","00100","01000"],'^':["00100","01010","10001","00000","00000"],
- 'v':["00000","00000","10001","01010","00100"],' ':["00000","00000","00000","00000","00000"]
+ '/':["00001","00010","00100","01000","10000"],'L4':[],
+ 'LT':["00010","00100","01000","00100","00010"],'GT':["01000","00100","00010","00100","01000"],
+ 'UP':["00100","01110","10101","00100","00100"],'DN':["00100","00100","10101","01110","00100"],
+ ' ':["00000","00000","00000","00000","00000"]
 };
 function drawText(str,x,y,s,col){ s=s||1; ctx.fillStyle=col||C.white; let cx=x;
-  for(const ch of (''+str)){ const g=FONT[ch]||FONT[ch.toUpperCase()]||FONT['?'];
-    for(let r=0;r<5;r++){ const row=g[r]; for(let i=0;i<5;i++) if(row[i]==='1') ctx.fillRect(cx+i*s,y+r*s,s,s); }
+  for(const ch of (''+str)){ const g=FONT[ch]||FONT[(''+ch).toUpperCase()]||FONT['?'];
+    for(let r=0;r<5;r++){ const row=g[r]; if(!row) continue; for(let i=0;i<5;i++) if(row[i]==='1') ctx.fillRect(cx+i*s,y+r*s,s,s); }
     cx+=6*s; } return cx; }
 function textW(str,s){ return (''+str).length*6*s - s; }
 function textC(str,y,s,col){ drawText(str,(W-textW(str,s))/2,y,s,col); }
 function textS(str,x,y,s,col,sh){ drawText(str,x+s,y+s,s,sh||C.black); drawText(str,x,y,s,col); }
 function textCS(str,y,s,col,sh){ textS(str,(W-textW(str,s))/2,y,s,col,sh); }
+// glyph helpers for arrow icons (size in px)
+function glyph(name,x,y,s,col){ ctx.fillStyle=col||C.white; const g=FONT[name]; for(let r=0;r<5;r++)for(let i=0;i<5;i++) if(g[r][i]==='1') ctx.fillRect(x+i*s,y+r*s,s,s); }
 
-// ====================== INPUT (multi-touch hold + taps) ======================
-let pressQueue=[];               // discrete presses since last frame
-let pointers={};                 // id -> {x,y} currently held
+// ====================== INPUT ======================
+let pressQueue=[];
+let pointers={};
 let keys={left:false,right:false,up:false,down:false};
 let spaceDown=false;
 function pt(clientX,clientY){ const r=canvas.getBoundingClientRect(); return {x:(clientX-r.left)/(r.width/W), y:(clientY-r.top)/(r.height/H)}; }
@@ -137,11 +134,8 @@ const SFX={
   goal:()=>{ beep(523,0.08); setTimeout(()=>beep(659,0.08),80); setTimeout(()=>beep(880,0.16),160); },
   save:()=>beep(120,0.22,'sawtooth',0.06),
   big:()=>{ beep(660,0.07); setTimeout(()=>beep(880,0.07),70); setTimeout(()=>beep(1175,0.16),140); },
-  roll:()=>beep(300,0.05,'triangle',0.04),
-  land:()=>{ beep(440,0.06); setTimeout(()=>beep(620,0.09),60); },
   ui:()=>beep(840,0.05,'square',0.05),
-  start:()=>{ beep(523,0.07); setTimeout(()=>beep(784,0.12),80); },
-  lock:()=>beep(560,0.05,'square',0.05)
+  start:()=>{ beep(523,0.07); setTimeout(()=>beep(784,0.12),80); }
 };
 
 // ====================== HELPERS ======================
@@ -150,9 +144,9 @@ function clamp(v,a,b){ return v<a?a:(v>b?b:v); }
 function lerp(a,b,t){ return a+(b-a)*t; }
 function dist(ax,ay,bx,by){ return Math.hypot(ax-bx,ay-by); }
 function vgrad(x,y,w,h,c1,c2){ const g=ctx.createLinearGradient(x,y,x,y+h); g.addColorStop(0,c1); g.addColorStop(1,c2); ctx.fillStyle=g; ctx.fillRect(x,y,w,h); }
-const HI={g1:0,g2:0};
-try{ HI.g1=+localStorage.getItem('lax3_hi1')||0; HI.g2=+localStorage.getItem('lax3_hi2')||0; }catch(e){}
-function saveHi(){ try{ localStorage.setItem('lax3_hi1',HI.g1); localStorage.setItem('lax3_hi2',HI.g2); }catch(e){} }
+const HI={g1:0};
+try{ HI.g1=+localStorage.getItem('lax4_hi1')||0; }catch(e){}
+function saveHi(){ try{ localStorage.setItem('lax4_hi1',HI.g1); }catch(e){} }
 let parts=[];
 function spawn(x,y,n,cols,sp){ sp=sp||2.6; for(let i=0;i<n;i++) parts.push({x,y,vx:rnd(-sp,sp),vy:rnd(-sp*1.3,-0.3),life:rnd(24,46),c:cols[(Math.random()*cols.length)|0]}); }
 function updateParts(){ for(let i=parts.length-1;i>=0;i--){ const p=parts[i]; p.x+=p.vx; p.y+=p.vy; p.vy+=0.14; p.life--; if(p.life<=0) parts.splice(i,1); } }
@@ -164,7 +158,6 @@ function drawBall(x,y,r){ r=r||4;
   ctx.fillStyle=C.ball; ctx.beginPath(); ctx.arc(x,y,r,0,7); ctx.fill();
   ctx.fillStyle='rgba(255,255,255,0.85)'; ctx.fillRect(x-r+1,y-r+1,2,2);
 }
-// attacker (#99) standing at bottom, crosse up toward the goal
 function drawShooter(x,y,wind){
   ctx.fillStyle=C.jersey; ctx.fillRect(x-6,y,5,14); ctx.fillRect(x+2,y,5,14);
   ctx.fillStyle=C.black; ctx.fillRect(x-7,y+13,7,3); ctx.fillRect(x+1,y+13,7,3);
@@ -180,30 +173,22 @@ function drawShooter(x,y,wind){
   ctx.strokeStyle=C.shaft; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(x+13+sw,y-20); ctx.lineTo(x+24+sw,y-42); ctx.stroke();
   ctx.fillStyle=C.orange; ctx.fillRect(x+22+sw,y-50,8,8); ctx.fillStyle=C.crosse; ctx.fillRect(x+23+sw,y-49,6,6);
 }
-// goalie filling the net; baseY = goal line, bw/bh body size
 function drawGoalie(x,baseY,bw,bh,lunge){
   const top=baseY-bh;
-  // legs/pads
   ctx.fillStyle=C.gkDk; ctx.fillRect(x-bw/2, top, bw, bh);
   ctx.fillStyle=C.gk;   ctx.fillRect(x-bw/2, top, bw, bh-6);
   ctx.fillStyle=C.gkHi; ctx.fillRect(x-bw/2, top, bw, 4);
-  // chest pad
   ctx.fillStyle=C.pad; ctx.fillRect(x-bw/2+4, top+10, bw-8, 16);
   ctx.fillStyle=C.gkDk; ctx.fillRect(x-2, top+10, 4, 16);
-  // head + helmet
   ctx.fillStyle=C.skin; ctx.fillRect(x-5, top-12, 10, 11);
   ctx.fillStyle=C.helmet; ctx.fillRect(x-7, top-14, 14, 9);
   ctx.fillStyle=C.helmetSh; ctx.fillRect(x-7, top-6, 14, 2);
   ctx.fillStyle=C.dgrey; ctx.fillRect(x-7, top-10, 3, 5);
-  // raised stick + big head (covers high)
   const lx=lunge||0;
   ctx.strokeStyle=C.shaft; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(x+bw/2-4, top+8); ctx.lineTo(x+bw/2+8+lx, top-18); ctx.stroke();
   ctx.fillStyle=C.orange; ctx.fillRect(x+bw/2+4+lx, top-26, 10, 12); ctx.fillStyle=C.crosse; ctx.fillRect(x+bw/2+5+lx, top-25, 8, 10);
-  // gloves
   ctx.fillStyle=C.gkDk; ctx.fillRect(x-bw/2-4, top+18, 6, 8); ctx.fillRect(x+bw/2-2, top+18, 6, 8);
 }
-
-// shared net pieces
 function drawBackstop(r){
   ctx.strokeStyle='rgba(255,255,255,0.18)'; ctx.lineWidth=1;
   for(let i=r.x-30;i<r.x+r.w+30;i+=9){ ctx.beginPath(); ctx.moveTo(i,r.y-26); ctx.lineTo(i,r.y+r.h+8); ctx.stroke(); }
@@ -223,52 +208,40 @@ function drawMesh(r){
   for(let i=r.x+5;i<r.x+r.w;i+=8){ ctx.beginPath(); ctx.moveTo(i,r.y); ctx.lineTo(i,r.y+r.h); ctx.stroke(); }
   for(let j=r.y+5;j<r.y+r.h;j+=8){ ctx.beginPath(); ctx.moveTo(r.x,j); ctx.lineTo(r.x+r.w,j); ctx.stroke(); }
 }
-function drawTarp(r,holes){
-  vgrad(r.x,r.y,r.w,r.h,C.tarpHi,C.tarpDk);
-  ctx.strokeStyle=C.tarpHi; ctx.lineWidth=1; ctx.strokeRect(r.x+3,r.y+3,r.w-6,r.h-6);
-  for(const h of holes){
-    ctx.fillStyle=C.holeRim; ctx.beginPath(); ctx.arc(h.x,h.y,h.r+2,0,7); ctx.fill();
-    ctx.fillStyle=C.hole;    ctx.beginPath(); ctx.arc(h.x,h.y,h.r,0,7); ctx.fill();
-    ctx.fillStyle='rgba(0,0,0,0.16)'; ctx.beginPath(); ctx.arc(h.x,h.y+h.r*0.3,h.r*0.8,0,7); ctx.fill();
-    drawText(''+h.pts, h.x-textW(''+h.pts,1)/2, h.y-2, 1, C.dgrey);
-  }
-}
-function drawBtn(r,label,active,big){
+function drawBtn(r,active){
   ctx.fillStyle=active?C.btnA:C.btn; ctx.fillRect(r.x,r.y,r.w,r.h);
   ctx.fillStyle=active?C.white:C.dgrey; ctx.fillRect(r.x,r.y,r.w,3);
   ctx.fillRect(r.x,r.y,3,r.h); ctx.fillRect(r.x+r.w-3,r.y,3,r.h); ctx.fillRect(r.x,r.y+r.h-3,r.w,3);
-  const s=big?2:2; drawText(label, r.x+(r.w-textW(label,s))/2, r.y+(r.h-5*s)/2, s, active?C.white:C.cream);
 }
 
 // ====================== STATE ======================
-const S={MENU:0,HELP:1,G1:2,G2:3,OVER:4};
+const S={MENU:0,HELP:1,G1:2,OVER:3};
 let state=S.MENU, frame=0, menuSel=0;
 
 // ====================== MENU ======================
 const MENU_BTNS=[
-  {label:'1  GOALIE',  sub:'BEAT THE KEEPER',     go:()=>{ g1Init(); state=S.G1; }},
-  {label:'2  SKEE NET',sub:'HIT THE POINT HOLES', go:()=>{ g2Init(); state=S.G2; }},
-  {label:'?  HOW TO PLAY',sub:'TUTORIAL & RULES',  go:()=>{ helpPage=0; state=S.HELP; }}
+  {label:'PLAY GOALIE', sub:'BEAT THE KEEPER',   go:()=>{ g1Init(); state=S.G1; }},
+  {label:'HOW TO PLAY', sub:'CONTROLS & RULES',  go:()=>{ helpPage=0; state=S.HELP; }}
 ];
-function btnRect(i){ return {x:24,y:300+i*64,w:W-48,h:52}; }
+function btnRect(i){ return {x:24,y:320+i*70,w:W-48,h:56}; }
 function menuUpdate(){
   let p; while((p=consumeTap())){
     if(p.x<0){ MENU_BTNS[menuSel].go(); SFX.start(); return; }
     for(let i=0;i<MENU_BTNS.length;i++){ if(hit(p,btnRect(i))){ menuSel=i; SFX.start(); MENU_BTNS[i].go(); return; } }
   }
-  if(keys.up){ menuSel=(menuSel+2)%3; keys.up=false; }
-  if(keys.down){ menuSel=(menuSel+1)%3; keys.down=false; }
+  if(keys.up){ menuSel=(menuSel+1)%2; keys.up=false; }
+  if(keys.down){ menuSel=(menuSel+1)%2; keys.down=false; }
 }
 function drawMenu(){
   vgrad(0,0,W,H,C.skyTop,C.skyBot);
   ctx.fillStyle=C.grass1; ctx.fillRect(0,H*0.5,W,H*0.5);
   for(let i=0;i<6;i++){ ctx.fillStyle=i%2?C.grass2:C.grass3; ctx.fillRect(0,H*0.5+i*22,W,11); }
-  ctx.fillStyle=C.panel; ctx.fillRect(20,40,W-40,120);
-  ctx.fillStyle=C.gold; ctx.fillRect(20,40,W-40,6); ctx.fillRect(20,154,W-40,6);
-  textCS('LACROSSE',64,5,C.yellow,C.orangeDk);
-  textCS('TAPPER',104,7,C.orange,C.black);
-  textCS('- 2 GAMES - ONE PLAYER -',140,1,C.cream,C.black);
-  const by=212+Math.sin(frame*0.12)*8;
+  ctx.fillStyle=C.panel; ctx.fillRect(20,46,W-40,120);
+  ctx.fillStyle=C.gold; ctx.fillRect(20,46,W-40,6); ctx.fillRect(20,160,W-40,6);
+  textCS('LACROSSE',70,5,C.yellow,C.orangeDk);
+  textCS('TAPPER',110,7,C.orange,C.black);
+  textCS('- GOALIE SHOOTOUT -',146,1,C.cream,C.black);
+  const by=232+Math.sin(frame*0.12)*8;
   ctx.strokeStyle=C.shaft; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(W/2+18,by+14); ctx.lineTo(W/2+4,by); ctx.stroke();
   ctx.fillStyle=C.orange; ctx.fillRect(W/2-2,by-8,10,10); ctx.fillStyle=C.crosse; ctx.fillRect(W/2-1,by-7,8,8);
   drawBall(W/2-6,by-3,5);
@@ -276,93 +249,88 @@ function drawMenu(){
     const b=btnRect(i), sel=(i===menuSel);
     ctx.fillStyle=sel?C.panelHi:C.panel; ctx.fillRect(b.x,b.y,b.w,b.h);
     ctx.fillStyle=sel?C.yellow:C.dgrey; ctx.fillRect(b.x,b.y,b.w,3); ctx.fillRect(b.x,b.y+b.h-3,b.w,3); ctx.fillRect(b.x,b.y,3,b.h); ctx.fillRect(b.x+b.w-3,b.y,3,b.h);
-    drawText(MENU_BTNS[i].label,b.x+12,b.y+10,2,sel?C.white:C.cream);
-    drawText(MENU_BTNS[i].sub,b.x+12,b.y+32,1,sel?C.green:C.grey);
-    const best=i===0?HI.g1:(i===1?HI.g2:-1);
-    if(best>=0) drawText('BEST '+best, b.x+b.w-textW('BEST '+best,1)-12, b.y+32, 1, C.gold);
+    drawText(MENU_BTNS[i].label,b.x+(b.w-textW(MENU_BTNS[i].label,2))/2,b.y+12,2,sel?C.white:C.cream);
+    drawText(MENU_BTNS[i].sub,b.x+(b.w-textW(MENU_BTNS[i].sub,1))/2,b.y+36,1,sel?C.green:C.grey);
   }
-  textCS('TAP A GAME TO START',H-22,1,C.cream,C.black);
+  drawText('BEST '+HI.g1, (W-textW('BEST '+HI.g1,1))/2, 300, 1, C.gold);
+  textCS('TAP TO START',H-22,1,C.cream,C.black);
 }
 
 // ====================== HELP ======================
 let helpPage=0;
 const HELP=[
-  {title:'HOW TO PLAY',lines:['LAX TAPPER HAS TWO','LACROSSE GAMES FOR','ONE PLAYER.','','TAP THROUGH THESE','PAGES FOR THE RULES.']},
-  {title:'1 GOALIE',lines:['SCORE ON A LIVE GOALIE','WHO BLOCKS THE NET','WITH HIS BODY.','','< > MOVE YOUR PLAYER','^ v AIM HIGH OR LOW','SHOOT FIRES THE BALL','','RETICLE GREEN = OPEN','RED = HE HAS IT.','BEAT HIM HIGH OR WIDE!']},
-  {title:'2 SKEE NET',lines:['A LACROSSE PRACTICE NET','WITH SKEE-BALL HOLES.','','TAP TO LOCK LEFT/RIGHT','TAP AGAIN TO SET POWER','( HIGHER = HIGHER UP )','','TOP CORNERS = 100','HIT THE HOLE FOR ITS','POINTS. 9 BALLS.']},
-  {title:'TIPS',lines:['IN GOALIE YOU CAN HOLD','MOVE AND AIM AT THE','SAME TIME - LINE UP A','GREEN SPOT THEN SHOOT.','','TOP CORNERS SCORE MOST','IN BOTH GAMES.','','HIGH SCORES SAVE HERE.','GOOD LUCK!']}
+  {title:'HOW TO PLAY',lines:['SCORE ON A LIVE GOALIE.','HE BLOCKS THE NET WITH','HIS BODY (THE DARK ZONE).','','SHOOT INTO THE OPEN','SPACE TO SCORE.','','TAP THROUGH FOR CONTROLS.']},
+  {title:'CONTROLS',lines:['DRAG ON THE NET TO MOVE','YOUR AIM AROUND.','','OR USE THE < > ^ v PADS','AT THE BOTTOM.','','TAP THE BIG SHOOT BAR','(OR SPACEBAR) TO FIRE.']},
+  {title:'SCORING',lines:['THE RETICLE IS GREEN WHEN','THE NET IS OPEN, RED WHEN','THE KEEPER HAS IT COVERED.','','BEAT HIM HIGH OR WIDE -','HE LUNGES AT YOUR SHOT.','','TOP CORNER = 5 PTS','EDGES = 3   CLOSE = 1','YOU GET 10 SHOTS.']}
 ];
-function helpUpdate(){ let p; while((p=consumeTap())){ if(hit(p,{x:12,y:12,w:70,h:34})){ SFX.ui(); state=S.MENU; return; } helpPage++; SFX.ui(); if(helpPage>=HELP.length){ state=S.MENU; return; } } }
+function helpUpdate(){ let p; while((p=consumeTap())){ if(hit(p,{x:12,y:12,w:80,h:36})){ SFX.ui(); state=S.MENU; return; } helpPage++; SFX.ui(); if(helpPage>=HELP.length){ state=S.MENU; return; } } }
 function drawHelp(){
   vgrad(0,0,W,H,'#10204a','#040814');
-  ctx.fillStyle=C.panelHi; ctx.fillRect(12,12,70,34); ctx.fillStyle=C.dgrey; ctx.fillRect(12,12,70,3);
-  drawText('< BACK',22,22,2,C.cream);
-  const pg=HELP[helpPage];
-  textCS(pg.title,66,3,C.yellow,C.black);
-  let y=120; for(const ln of pg.lines){ const hl=ln.indexOf('=')>=0||ln.indexOf('<')>=0||ln.indexOf('^')>=0; textC(ln,y,1,hl?C.green:C.cream); y+=17; }
+  ctx.fillStyle=C.panelHi; ctx.fillRect(12,12,80,36); ctx.fillStyle=C.dgrey; ctx.fillRect(12,12,80,3);
+  glyph('LT',20,22,3,C.cream); drawText('BACK',36,23,2,C.cream);
+  const pg=HELP[clamp(helpPage,0,HELP.length-1)];
+  textCS(pg.title,72,3,C.yellow,C.black);
+  let y=128; for(const ln of pg.lines){ const hl=ln.indexOf('=')>=0||ln.indexOf('GREEN')>=0||ln.indexOf('DRAG')>=0; textC(ln,y,1,hl?C.green:C.cream); y+=18; }
   for(let i=0;i<HELP.length;i++){ ctx.fillStyle=i===helpPage?C.yellow:C.dgrey; ctx.fillRect(W/2-HELP.length*7+i*14,H-56,9,9); }
-  textCS(helpPage<HELP.length-1?'TAP TO CONTINUE >':'TAP TO FINISH',H-34,1,C.white,C.black);
+  textCS(helpPage<HELP.length-1?'TAP TO CONTINUE':'TAP TO FINISH',H-34,1,C.white,C.black);
 }
 
-// ====================== GAME 1 — GOALIE ======================
+// ====================== GAME — GOALIE ======================
 const G1={};
-const NET1={x:60,y:60,w:180,h:150};
-const SHOOT_BTN={x:112,y:438,w:76,h:60};
-const MOVE_L={x:14,y:440,w:58,h:56}, MOVE_R={x:76,y:440,w:58,h:56};
-const AIM_U={x:228,y:430,w:58,h:46}, AIM_D={x:228,y:480,w:58,h:46};
+const NET1={x:60,y:64,w:180,h:150};
+const PLAY_BOTTOM=414;                 // drag-to-aim works above this line
+const MOVE_L={x:12,y:420,w:64,h:48}, MOVE_R={x:80,y:420,w:64,h:48};
+const AIM_U={x:160,y:420,w:60,h:48}, AIM_D={x:224,y:420,w:60,h:48};
+const SHOOT_BTN={x:12,y:476,w:W-24,h:52};
 function g1Init(){
   G1.shots=10; G1.score=0; G1.goals=0;
-  G1.aimX=NET1.x+NET1.w/2; G1.aimY=NET1.y+NET1.h*0.55;
-  G1.gk={x:NET1.x+NET1.w/2,dir:1,bw:50,bh:104,reach:14,lunge:0};
+  G1.aimX=NET1.x+NET1.w/2; G1.aimY=NET1.y+NET1.h*0.5;
+  G1.gk={x:NET1.x+NET1.w/2,dir:1,bw:50,bh:104,reach:14,lunge:0,speed:1.4};
   G1.phase='aim'; G1.ball=null; G1.shake=0;
   G1.msg=''; G1.msgT=0; G1.msgC=C.white; G1.tut=true;
+  G1.shooterX=W/2; G1.shooterY=326;
 }
-function g1Gk(){ return G1.gk.speed=1.4+Math.min(1.8,G1.goals*0.14), G1.gk; }
 function g1Covered(tx,ty,gk){
-  const topReach=NET1.y+NET1.h-G1.gk.bh-G1.gk.reach;
-  const horiz=Math.abs(tx-gk.x) < gk.bw/2 + gk.reach;
-  const vert = ty > topReach;            // above his reach = open (top shelf)
-  return horiz && vert;
+  const topReach=NET1.y+NET1.h-gk.bh-gk.reach;
+  return (Math.abs(tx-gk.x) < gk.bw/2+gk.reach) && (ty > topReach);
 }
-function g1Patrol(spd){
-  const gk=G1.gk, mn=NET1.x+gk.bw/2+2, mx=NET1.x+NET1.w-gk.bw/2-2;
-  gk.x+=gk.dir*spd; if(gk.x<mn){ gk.x=mn; gk.dir=1; } if(gk.x>mx){ gk.x=mx; gk.dir=-1; }
+function g1Patrol(spd){ const gk=G1.gk, mn=NET1.x+gk.bw/2+2, mx=NET1.x+NET1.w-gk.bw/2-2;
+  gk.x+=gk.dir*spd; if(gk.x<mn){ gk.x=mn; gk.dir=1; } if(gk.x>mx){ gk.x=mx; gk.dir=-1; } }
+function g1NextShot(){ if(G1.shots<=0){ endGame(G1.score); return; } G1.phase='aim'; G1.ball=null; }
+function g1Fire(){
+  const sx=G1.shooterX, sy=G1.shooterY-44, tx=G1.aimX, ty=G1.aimY, d=dist(sx,sy,tx,ty), spd=9.5;
+  G1.ball={x:sx,y:sy,vx:(tx-sx)/d*spd,vy:(ty-sy)/d*spd,tx,ty,t:0,total:Math.max(8,d/spd)};
+  G1.phase='fly'; G1.shots--; G1.gk.lunge=0; SFX.shoot();
 }
-function g1NextShot(){ if(G1.shots<=0){ endGame(1,G1.score); return; } G1.phase='aim'; G1.ball=null; }
 function g1Update(){
   if(G1.msgT>0) G1.msgT--; G1.shake*=0.82;
-  const gk=g1Gk();
+  G1.gk.speed=1.4+Math.min(1.8,G1.goals*0.14);
   if(G1.tut){ if(consumeTap()) G1.tut=false; return; }
-
   if(G1.phase==='aim'){
-    g1Patrol(gk.speed);
-    const sp=2.4;
-    if(held(MOVE_L)||keys.left)  G1.aimX-=sp;
-    if(held(MOVE_R)||keys.right) G1.aimX+=sp;
-    if(held(AIM_U)||keys.up)     G1.aimY-=2.1;
-    if(held(AIM_D)||keys.down)   G1.aimY+=2.1;
+    g1Patrol(G1.gk.speed);
+    // drag-to-aim: any finger held in the play area sets the aim point
+    for(const id in pointers){ const q=pointers[id]; if(q.y<PLAY_BOTTOM){ G1.aimX=clamp(q.x,NET1.x+12,NET1.x+NET1.w-12); G1.aimY=clamp(q.y,NET1.y+12,NET1.y+NET1.h-12); } }
+    // pad nudges (and keyboard)
+    if(held(MOVE_L)||keys.left)  G1.aimX-=2.6;
+    if(held(MOVE_R)||keys.right) G1.aimX+=2.6;
+    if(held(AIM_U)||keys.up)     G1.aimY-=2.4;
+    if(held(AIM_D)||keys.down)   G1.aimY+=2.4;
     G1.aimX=clamp(G1.aimX, NET1.x+12, NET1.x+NET1.w-12);
     G1.aimY=clamp(G1.aimY, NET1.y+12, NET1.y+NET1.h-12);
-    let p; while((p=consumeTap())){ if(p.x<0||hit(p,SHOOT_BTN)){
-      const sx=G1.shooterX, sy=G1.shooterY-44, tx=G1.aimX, ty=G1.aimY, d=dist(sx,sy,tx,ty), spd=9.5;
-      G1.ball={x:sx,y:sy,vx:(tx-sx)/d*spd,vy:(ty-sy)/d*spd,tx,ty,t:0,total:Math.max(8,d/spd)};
-      G1.phase='fly'; G1.shots--; gk.lunge=0; SFX.shoot(); break;
-    }}
+    let p; while((p=consumeTap())){ if(p.x<0||hit(p,SHOOT_BTN)){ g1Fire(); break; } }
   } else if(G1.phase==='fly'){
     const b=G1.ball; b.x+=b.vx; b.y+=b.vy; b.t++;
-    // goalie keeps patrolling AND lunges toward the shot
-    g1Patrol(gk.speed*0.6);
-    const dx=b.tx-gk.x; gk.x+=clamp(dx,-2.4,2.4); gk.lunge=clamp(dx*0.4,-6,6);
-    gk.x=clamp(gk.x,NET1.x+gk.bw/2+2,NET1.x+NET1.w-gk.bw/2-2);
+    g1Patrol(G1.gk.speed*0.6);
+    const dx=b.tx-G1.gk.x; G1.gk.x+=clamp(dx,-2.4,2.4); G1.gk.lunge=clamp(dx*0.4,-6,6);
+    G1.gk.x=clamp(G1.gk.x,NET1.x+G1.gk.bw/2+2,NET1.x+NET1.w-G1.gk.bw/2-2);
     if(b.t>=b.total){
       b.x=b.tx; b.y=b.ty;
-      if(g1Covered(b.tx,b.ty,gk)){
+      if(g1Covered(b.tx,b.ty,G1.gk)){
         G1.msg='SAVE!'; G1.msgC=C.red; G1.msgT=64; G1.shake=6; SFX.save();
         b.vx=-b.vx*0.3; b.vy=2.6; b.bounce=true;
       } else {
         const hx=(b.tx-NET1.x)/NET1.w, vy=(b.ty-NET1.y)/NET1.h;
-        const top=vy<0.34, side=hx<0.3||hx>0.7;
-        const pts=1+(top?2:0)+(side?2:0);
+        const top=vy<0.34, side=hx<0.3||hx>0.7, pts=1+(top?2:0)+(side?2:0);
         G1.score+=pts; G1.goals++;
         G1.msg=(pts>=5?'TOP CORNER!':top?'TOP SHELF!':side?'FAR SIDE!':'GOAL!')+' +'+pts;
         G1.msgC=C.green; G1.msgT=72; spawn(b.x,b.y,20,[C.green,C.yellow,C.white]);
@@ -374,29 +342,25 @@ function g1Update(){
     const b=G1.ball; if(b&&b.bounce){ b.x+=b.vx; b.y+=b.vy; b.vy+=0.3; }
     if(--G1.resT<=0) g1NextShot();
   }
-  // shooter slides under the aim
   G1.shooterX=lerp(40,W-40,(G1.aimX-(NET1.x+12))/(NET1.w-24));
   updateParts();
 }
-G1.shooterX=W/2; G1.shooterY=320;
 function g1Draw(){
   const sh=(G1.shake*((frame%2)?1:-1))|0;
   vgrad(0,0,W,H,C.skyTop,C.skyBot);
   ctx.fillStyle=C.grass1; ctx.fillRect(0,150,W,H-150);
-  for(let i=0;i<8;i++){ ctx.fillStyle=i%2?C.grass2:C.grass3; ctx.fillRect(0,160+i*22,W,11); }
+  for(let i=0;i<8;i++){ ctx.fillStyle=i%2?C.grass2:C.grass3; ctx.fillRect(0,160+i*20,W,10); }
   ctx.save(); ctx.translate(sh,0);
   drawBackstop(NET1); drawGoalFrame(NET1); drawMesh(NET1);
-  // coverage shadow (what the goalie blocks with his body) — echoes the photo
   const gk=G1.gk, top=NET1.y+NET1.h-gk.bh;
   ctx.fillStyle='rgba(8,8,12,0.45)';
   ctx.fillRect(clamp(gk.x-gk.bw/2-gk.reach,NET1.x,NET1.x+NET1.w), top-gk.reach, gk.bw+gk.reach*2, NET1.y+NET1.h-(top-gk.reach));
   drawGoalie(gk.x, NET1.y+NET1.h, gk.bw, gk.bh, gk.lunge);
-  // reticle (green=open, red=covered)
   if(G1.phase==='aim'){
     const open=!g1Covered(G1.aimX,G1.aimY,gk), col=open?C.green:C.red, blink=frame%8<5;
     ctx.strokeStyle=blink?col:C.white; ctx.lineWidth=2;
-    ctx.beginPath(); ctx.arc(G1.aimX,G1.aimY,10,0,7); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(G1.aimX-14,G1.aimY); ctx.lineTo(G1.aimX+14,G1.aimY); ctx.moveTo(G1.aimX,G1.aimY-14); ctx.lineTo(G1.aimX,G1.aimY+14); ctx.stroke();
+    ctx.beginPath(); ctx.arc(G1.aimX,G1.aimY,11,0,7); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(G1.aimX-15,G1.aimY); ctx.lineTo(G1.aimX+15,G1.aimY); ctx.moveTo(G1.aimX,G1.aimY-15); ctx.lineTo(G1.aimX,G1.aimY+15); ctx.stroke();
     ctx.strokeStyle='rgba(255,255,255,0.25)'; ctx.setLineDash([4,4]); ctx.beginPath(); ctx.moveTo(G1.shooterX,G1.shooterY-44); ctx.lineTo(G1.aimX,G1.aimY); ctx.stroke(); ctx.setLineDash([]);
   }
   if(G1.ball&&!G1.ball.dead) drawBall(G1.ball.x,G1.ball.y,4);
@@ -404,109 +368,22 @@ function g1Draw(){
   drawShooter(G1.shooterX,G1.shooterY,G1.phase==='fly'&&frame%4<2);
   ctx.restore();
   // controls
-  drawBtn(MOVE_L,'<',held(MOVE_L)||keys.left); drawBtn(MOVE_R,'>',held(MOVE_R)||keys.right);
-  drawBtn(AIM_U,'^',held(AIM_U)||keys.up); drawBtn(AIM_D,'v',held(AIM_D)||keys.down);
-  drawBtn(SHOOT_BTN,'SHOOT',false,true);
-  drawText('MOVE',MOVE_L.x+8,MOVE_L.y-12,1,C.grey); drawText('AIM',AIM_U.x+14,AIM_U.y-12,1,C.grey);
+  drawBtn(MOVE_L,held(MOVE_L)||keys.left); glyph('LT',MOVE_L.x+22,MOVE_L.y+15,4,C.cream);
+  drawBtn(MOVE_R,held(MOVE_R)||keys.right); glyph('GT',MOVE_R.x+22,MOVE_R.y+15,4,C.cream);
+  drawBtn(AIM_U,held(AIM_U)||keys.up); glyph('UP',AIM_U.x+20,AIM_U.y+15,4,C.cream);
+  drawBtn(AIM_D,held(AIM_D)||keys.down); glyph('DN',AIM_D.x+20,AIM_D.y+15,4,C.cream);
+  drawBtn(SHOOT_BTN,false); drawText('SHOOT',SHOOT_BTN.x+(SHOOT_BTN.w-textW('SHOOT',3))/2,SHOOT_BTN.y+18,3,C.yellow);
+  drawText('MOVE',MOVE_L.x+24,MOVE_L.y-12,1,C.grey); drawText('AIM',AIM_U.x+28,AIM_U.y-12,1,C.grey);
   // HUD
   ctx.fillStyle=C.panel; ctx.fillRect(0,0,W,26); ctx.fillStyle=C.gold; ctx.fillRect(0,24,W,2);
   drawText('SCORE',8,4,1,C.grey); drawText(''+G1.score,8,13,2,C.white);
   drawText('GOALS',W/2-16,4,1,C.grey); drawText(G1.goals+'/10',W/2-16,13,2,C.green);
   drawText('SHOTS',W-58,4,1,C.grey); drawText(''+G1.shots,W-30,13,2,C.yellow);
   if(G1.msgT>0) textCS(G1.msg,250+Math.sin(frame*0.3)*2,3,G1.msgC,C.black);
-  if(G1.tut) tutorial('GOALIE','MOVE < >  AND  AIM ^ v','FIND A GREEN SPOT, THEN SHOOT');
+  if(G1.tut) tutorial('GOALIE','DRAG ON THE NET TO AIM','SHOOT WHEN THE RING IS GREEN');
 }
 
-// ====================== GAME 2 — SKEE NET ======================
-const G2={};
-const NET2={x:60,y:150,w:180,h:172};
-function g2Holes(){
-  const r=NET2,gx=r.x,gy=r.y,gw=r.w,gh=r.h,ci=32;
-  return [
-    {x:gx+ci,    y:gy+ci,    r:16, pts:100},
-    {x:gx+gw-ci, y:gy+ci,    r:16, pts:100},
-    {x:gx+gw/2,  y:gy+24,    r:18, pts:50},
-    {x:gx+26,    y:gy+gh/2,  r:18, pts:40},
-    {x:gx+gw-26, y:gy+gh/2,  r:18, pts:40},
-    {x:gx+ci,    y:gy+gh-ci, r:16, pts:20},
-    {x:gx+gw-ci, y:gy+gh-ci, r:16, pts:20},
-    {x:gx+gw/2,  y:gy+gh-24, r:18, pts:10}
-  ];
-}
-function g2Init(){
-  G2.balls=9; G2.score=0; G2.holes=g2Holes();
-  G2.phase='aimx'; G2.sweep=NET2.x+14; G2.sdir=1; G2.tX=0;
-  G2.power=0; G2.pdir=1; G2.ball=null;
-  G2.msg=''; G2.msgT=0; G2.msgC=C.white; G2.flash=0; G2.tut=true;
-}
-function g2NextBall(){ if(G2.balls<=0){ endGame(2,G2.score); return; } G2.phase='aimx'; G2.sweep=NET2.x+14; G2.sdir=1; G2.power=0; G2.pdir=1; G2.ball=null; }
-function g2Update(){
-  if(G2.msgT>0) G2.msgT--; if(G2.flash>0) G2.flash--;
-  if(G2.tut){ if(consumeTap()) G2.tut=false; return; }
-  if(G2.phase==='aimx'){
-    G2.sweep+=G2.sdir*2.6; const mn=NET2.x+14,mx=NET2.x+NET2.w-14;
-    if(G2.sweep<mn){ G2.sweep=mn; G2.sdir=1; } if(G2.sweep>mx){ G2.sweep=mx; G2.sdir=-1; }
-    if(consumeTap()){ G2.tX=G2.sweep+rnd(-5,5); G2.phase='power'; SFX.lock(); }
-  } else if(G2.phase==='power'){
-    G2.power+=G2.pdir*0.02; if(G2.power>=1){ G2.power=1; G2.pdir=-1; } if(G2.power<=0){ G2.power=0; G2.pdir=1; }
-    if(consumeTap()){
-      const p=clamp(G2.power+rnd(-0.02,0.02),0,1);
-      const tY=lerp(NET2.y+NET2.h-18, NET2.y+18, p)+rnd(-5,5);
-      G2.ball={x:G2.tX,y:H-30,tx:G2.tX,ty:tY,t:0,total:24};
-      G2.phase='roll'; SFX.roll();
-    }
-  } else if(G2.phase==='roll'){
-    const b=G2.ball; b.t++; const k=b.t/b.total, e=1-Math.pow(1-k,2);
-    b.x=lerp(b.tx,b.tx,e); b.y=lerp(H-30,b.ty,e);
-    if(b.t%5===0) SFX.roll();
-    if(b.t>=b.total){
-      let hole=null; for(const h of G2.holes){ if(dist(b.tx,b.ty,h.x,h.y)<h.r*0.92){ hole=h; break; } }
-      if(hole){ G2.score+=hole.pts; G2.msg='+'+hole.pts; G2.msgC=hole.pts>=100?C.gold:(hole.pts>=40?C.yellow:C.green); G2.msgT=58;
-        spawn(b.tx,b.ty,hole.pts>=100?28:14,hole.pts>=100?[C.gold,C.yellow,C.white]:[C.green,C.white]); hole.pts>=100?(SFX.big(),G2.flash=30):SFX.land();
-      } else { G2.msg='MISS'; G2.msgC=C.red; G2.msgT=50; SFX.save(); }
-      G2.balls--; G2.phase='result'; G2.resT=38;
-    }
-  } else if(G2.phase==='result'){ if(--G2.resT<=0) g2NextBall(); }
-  updateParts();
-}
-function g2Draw(){
-  vgrad(0,0,W,H,'#0a1024','#05070f');
-  // cabinet header
-  ctx.fillStyle=C.cab; ctx.fillRect(10,8,W-20,118); ctx.fillStyle=C.cabHi; ctx.fillRect(10,8,W-20,4); ctx.fillStyle=C.gold; ctx.fillRect(10,122,W-20,4);
-  drawText('SKEE',24,52,3,C.led); drawText('BALL',W-24-textW('BALL',3),52,3,C.led);
-  drawText('FREE',26,18,1,G2.score>=300?C.yellow:C.dgrey); drawText('GAME',26,28,1,G2.score>=300?C.yellow:C.dgrey);
-  drawText('GAME',W-50,18,1,G2.balls===0?C.red:C.dgrey); drawText('OVER',W-50,28,1,G2.balls===0?C.red:C.dgrey);
-  textCS('WINNER',12,1,G2.flash>0?C.yellow:C.gold,C.black);
-  ctx.fillStyle=C.ledBg; ctx.fillRect(W/2-46,40,92,40); ctx.fillStyle='#000'; ctx.fillRect(W/2-43,43,86,34);
-  const led=('00'+G2.score).slice(-3);
-  drawText('888',W/2-textW('888',3)/2,49,3,C.ledDk); drawText(led,W/2-textW(led,3)/2,49,3,C.led);
-  ctx.fillStyle=C.ledBg; ctx.fillRect(W/2-10,96,22,20); drawText(''+(9-G2.balls),W/2-textW(''+(9-G2.balls),2)/2,100,2,C.led);
-  drawText('BALLS',W/2-58,102,1,C.cream); drawText('PLAYED',W/2+20,102,1,C.cream);
-  // practice net with skee holes
-  drawBackstop(NET2); drawGoalFrame(NET2); drawTarp(NET2,G2.holes);
-  // aim guide
-  if(G2.phase==='aimx'){ ctx.strokeStyle=frame%8<5?C.yellow:C.orange; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(G2.sweep,NET2.y); ctx.lineTo(G2.sweep,NET2.y+NET2.h); ctx.stroke(); }
-  if(G2.phase==='power'){ ctx.strokeStyle='rgba(255,210,63,0.5)'; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(G2.tX,NET2.y); ctx.lineTo(G2.tX,NET2.y+NET2.h); ctx.stroke(); }
-  // ball + launch base
-  ctx.fillStyle=C.laneEdge||'#7a3b2e'; ctx.fillRect(W/2-40,H-22,80,22);
-  if(G2.ball) drawBall(G2.ball.x,G2.ball.y,5); else if(G2.phase!=='roll') drawBall(G2.tX||W/2,H-30,5);
-  drawParts();
-  // power meter
-  if(G2.phase==='power'){
-    const mx=18,my=200,mw=16,mh=250; ctx.fillStyle=C.black; ctx.fillRect(mx-3,my-3,mw+6,mh+6); ctx.fillStyle='#1a1f30'; ctx.fillRect(mx,my,mw,mh);
-    const blocks=20; for(let i=0;i<blocks;i++){ if(i/blocks<G2.power){ const t=i/blocks; ctx.fillStyle=t>0.85?C.gold:(t>0.6?C.red:(t>0.35?C.yellow:C.green)); const by=my+mh-(i+1)*(mh/blocks); ctx.fillRect(mx+1,by+1,mw-2,mh/blocks-1.5); } }
-    drawText('PWR',mx-2,my-16,1,C.white);
-  }
-  // HUD + prompts
-  ctx.fillStyle=C.panel; ctx.fillRect(0,H-22,W,22); ctx.fillStyle=C.gold; ctx.fillRect(0,H-22,W,2);
-  drawText('SCORE '+G2.score,8,H-15,1,C.white); drawText('BALLS '+G2.balls,W-textW('BALLS '+G2.balls,1)-8,H-15,1,C.yellow);
-  if(!G2.tut){ const pr=G2.phase==='aimx'?'TAP: LOCK LEFT/RIGHT':G2.phase==='power'?'TAP: SET POWER & LAUNCH':''; if(pr) textCS(pr,H-44,1,C.cream,C.black); }
-  if(G2.msgT>0) textCS(G2.msg,330+Math.sin(frame*0.3)*2,4,G2.msgC,C.black);
-  if(G2.flash>0&&frame%6<3){ ctx.fillStyle='rgba(255,210,63,0.12)'; ctx.fillRect(0,0,W,H); }
-  if(G2.tut) tutorial('SKEE NET','TAP TO LOCK LEFT/RIGHT,','TAP AGAIN TO SET POWER');
-}
-
-// ====================== TUTORIAL OVERLAY ======================
+// ====================== TUTORIAL ======================
 function tutorial(title,l1,l2){
   ctx.fillStyle='rgba(0,0,0,0.74)'; ctx.fillRect(0,0,W,H);
   ctx.fillStyle=C.panel; ctx.fillRect(20,H/2-86,W-40,172);
@@ -518,17 +395,17 @@ function tutorial(title,l1,l2){
 }
 
 // ====================== GAME OVER ======================
-let over={game:1,score:0,best:0,nb:false,t:0};
-function endGame(game,score){ over.game=game; over.score=score; over.t=0; over.best=game===1?HI.g1:HI.g2; over.nb=false;
-  if(score>over.best){ over.nb=true; if(game===1)HI.g1=score; else HI.g2=score; over.best=score; saveHi(); spawn(W/2,180,40,[C.yellow,C.green,C.gold,C.white]); }
+let over={score:0,best:0,nb:false,t:0};
+function endGame(score){ over.score=score; over.t=0; over.best=HI.g1; over.nb=false;
+  if(score>HI.g1){ over.nb=true; HI.g1=score; over.best=score; saveHi(); spawn(W/2,180,40,[C.yellow,C.green,C.gold,C.white]); }
   state=S.OVER; }
 function overUpdate(){ over.t++; updateParts(); let p; while((p=consumeTap())){ if(over.t<=20) break;
   const bw=(W-60)/2;
-  if(hit(p,{x:24,y:H-150,w:bw,h:52})){ if(over.game===1){g1Init();state=S.G1;}else{g2Init();state=S.G2;} return; }
+  if(hit(p,{x:24,y:H-150,w:bw,h:52})){ g1Init(); state=S.G1; return; }
   if(hit(p,{x:36+bw,y:H-150,w:bw,h:52})||p.x<0){ state=S.MENU; return; } } }
 function drawOver(){
   vgrad(0,0,W,H,'#101a3a','#04060e');
-  textCS(over.game===1?'GOALIE':'SKEE NET',90,2,C.grey,C.black);
+  textCS('GOALIE',90,2,C.grey,C.black);
   textCS('GAME OVER',120,4,C.red,C.black);
   ctx.fillStyle=C.panel; ctx.fillRect(40,170,W-80,120); ctx.fillStyle=C.gold; ctx.fillRect(40,170,W-80,4);
   textCS('YOUR SCORE',196,1,C.grey,C.black); textCS(''+over.score,214,6,C.yellow,C.black);
@@ -542,17 +419,30 @@ function drawOver(){
   if(over.t>20&&frame%20<12) textCS('TAP A BUTTON',H-44,1,C.cream,C.black);
 }
 
-// ====================== MAIN LOOP ======================
-function loop(){
-  frame++;
+// ====================== MAIN LOOP (crash-safe) ======================
+function frameStep(){
   ctx.fillStyle='#000'; ctx.fillRect(0,0,W,H);
   if(state===S.MENU){ menuUpdate(); drawMenu(); }
   else if(state===S.HELP){ helpUpdate(); drawHelp(); }
   else if(state===S.G1){ g1Update(); g1Draw(); }
-  else if(state===S.G2){ g2Update(); g2Draw(); }
   else if(state===S.OVER){ overUpdate(); drawOver(); }
   ctx.globalAlpha=0.05; ctx.fillStyle='#000'; for(let y=0;y<H;y+=3) ctx.fillRect(0,y,W,1); ctx.globalAlpha=1;
-  pressQueue.length=0;   // drop any unconsumed presses each frame
+}
+let lastErr='';
+function loop(){
+  frame++;
+  try{ frameStep(); }
+  catch(e){
+    // never freeze on a blank screen — show the error and let the user tap back to menu
+    lastErr=(''+(e&&e.message||e)).slice(0,40);
+    ctx.fillStyle='#101626'; ctx.fillRect(0,0,W,H);
+    textCS('OOPS',120,4,C.red,C.black);
+    textC('SOMETHING GLITCHED',170,1,C.cream);
+    textC(lastErr||'UNKNOWN',192,1,C.grey);
+    textC('TAP TO RETURN TO MENU',240,1,C.yellow);
+    if(consumeTap()){ state=S.MENU; menuSel=0; }
+  }
+  pressQueue.length=0;
   requestAnimationFrame(loop);
 }
 loop();
