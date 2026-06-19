@@ -758,12 +758,11 @@ function surveyOpen(from){ survey.r=[0,0,0,0]; survey.from=from; survey.sent=0; 
 function starRect(row,i){ return {x:120+i*34-13, y:104+row*52-13, w:26, h:26}; }
 const SV_SUBMIT={x:36,y:392,w:W-72,h:46}, SV_BACK={x:12,y:12,w:80,h:36};
 function surveySubmit(){
-  const r=survey.r, lbl=['FUN','CONTROLS','DIFFICULTY','LOOKS'];
-  let body='LAX TAPPER - PLAYER FEEDBACK%0A%0A';
-  for(let i=0;i<4;i++) body+=lbl[i]+': '+(r[i]||'-')+'/5%0A';
-  body+='MY BEST SCORE: '+HI.g1+'%0A%0AWHAT I LIKED / IDEAS:%0A';
-  const url='mailto:'+FEEDBACK_EMAIL+'?subject='+encodeURIComponent('LAX TAPPER Feedback')+'&body='+body;
-  try{ window.location.href=url; }catch(e){}
+  const r=survey.r;
+  const row={fun:r[0]||null, controls:r[1]||null, difficulty:r[2]||null, looks:r[3]||null, best:HI.g1, note:null};
+  if(typeof fetch==='function'){
+    fetch(SUPA_URL+'/rest/v1/feedback',{method:'POST',headers:Object.assign({'Content-Type':'application/json',Prefer:'return=minimal'},SUPA_HEAD),body:JSON.stringify(row)}).catch(()=>{});
+  }
   survey.sent=1;
 }
 function surveyUpdate(){
@@ -780,10 +779,10 @@ function drawSurvey(){
   glyph('LT',20,22,3,C.cream); drawText('BACK',36,23,2,C.cream);
   textCS('RATE THE GAME',62,3,C.yellow,C.black);
   if(survey.sent){
-    textC('THANKS FOR THE FEEDBACK!',150,1,C.green);
-    textC('YOUR MAIL APP SHOULD OPEN',176,1,C.cream);
-    textC('WITH YOUR RATINGS READY',192,1,C.cream);
-    textC('TO SEND. TAP TO CONTINUE.',208,1,C.cream);
+    drawStar(W/2,150,16,true);
+    textC('THANKS FOR THE FEEDBACK!',186,1,C.green);
+    textC('YOUR RATINGS WERE SENT.',210,1,C.cream);
+    textC('TAP TO CONTINUE.',230,1,C.cream);
     return;
   }
   for(let row=0;row<4;row++){
@@ -793,8 +792,8 @@ function drawSurvey(){
   }
   drawBtn(SV_SUBMIT,false); ctx.fillStyle=C.green; ctx.fillRect(SV_SUBMIT.x,SV_SUBMIT.y,SV_SUBMIT.w,3);
   drawText('SUBMIT FEEDBACK',SV_SUBMIT.x+SV_SUBMIT.w/2-textW('SUBMIT FEEDBACK',2)/2,SV_SUBMIT.y+15,2,C.white);
-  textC('OPENS YOUR EMAIL APP TO SEND',H-72,1,C.grey);
-  textC('TAP STARS TO RATE - ADD NOTES IN THE EMAIL',H-52,1,C.grey);
+  textC('TAP THE STARS TO RATE',H-64,1,C.grey);
+  textC('SENT STRAIGHT TO THE DEV - NO EMAIL',H-48,1,C.grey);
 }
 
 // ====================== BADGES SCREEN ======================
