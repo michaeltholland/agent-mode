@@ -722,8 +722,8 @@ function drawToasts(){
   if(toastT>150){ toasts.shift(); toastT=0; }
 }
 const SHARE_URL='https://michaeltholland.github.io/agent-mode/';
-const APP_VERSION='1.4';     // bump every deploy; the update check compares against the live file
-const WHATS_NEW='LACROSSE TRIVIA - ANSWER FOR COINS';   // one-line highlight shown on the update prompt
+const APP_VERSION='1.5';     // bump every deploy; the update check compares against the live file
+const WHATS_NEW='TRIVIA NOW ONCE PER SESSION';   // one-line highlight shown on the update prompt
 let updateReady=false, updateNote='';
 function updateCheck(){
   if(typeof fetch!=='function') return;
@@ -944,7 +944,10 @@ const TRIVIA_Q=[
   {q:'GREAT SHOOTERS SHOOT AT THE RIGHT...',opts:['MOMENT','PRICE','ANGLE ONLY'],ans:0,fact:'THE RIGHT MOMENT - WHEN THE LANE OPENS UP.'}
 ];
 let trivia={q:null,order:[0,1,2],correct:0,picked:-1,answered:false};
+let triviaSeen=false;   // once per session: only the first game of a session asks
 function triviaStart(){
+  if(triviaSeen){ g1Init(); state=S.G1; return; }   // already asked this session - straight to play
+  triviaSeen=true;
   const q=TRIVIA_Q[(Math.random()*TRIVIA_Q.length)|0];
   const order=q.opts.map((_,i)=>i);
   for(let i=order.length-1;i>0;i--){ const j=(Math.random()*(i+1))|0; const t=order[i]; order[i]=order[j]; order[j]=t; }
