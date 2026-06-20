@@ -394,7 +394,7 @@ const MENU_BTNS=[
   {label:'FEEDBACK',    r:{x:24,y:404,w:HWg,h:46},       go:()=>{ surveyOpen('MENU'); }},
   {label:'SHARE GAME',  r:{x:36+HWg,y:404,w:HWg,h:46},   go:()=>{ shareGame(0); }}
 ];
-const UPDATE_BTN={x:40,y:H-32,w:W-80,h:24};
+const UPDATE_BTN={x:40,y:H-44,w:W-80,h:22};
 function menuUpdate(){
   let p; while((p=consumeTap())){
     if(updateReady && p.x>=0 && hit(p,UPDATE_BTN)){ doUpdate(); return; }
@@ -427,10 +427,11 @@ function drawMenu(){
     drawText(MENU_BTNS[i].label,b.x+(b.w-textW(MENU_BTNS[i].label,sc))/2,b.y+(b.h-5*sc)/2,sc,sel?C.white:C.cream);
     if(MENU_BTNS[i].label==='SHARE GAME') shareBtn={x:b.x,y:b.y,w:b.w,h:b.h,score:0};
   }
-  drawText('v'+APP_VERSION,6,H-12,1,C.dgrey);
+  drawText('v'+APP_VERSION, W-6-textW('v'+APP_VERSION,1), 6, 1, C.dgrey);
   if(updateReady){ const b=UPDATE_BTN, fl=frame%20<12;
     ctx.fillStyle=fl?C.green:'#1f7a44'; ctx.fillRect(b.x,b.y,b.w,b.h); ctx.fillStyle=C.white; ctx.fillRect(b.x,b.y,b.w,2);
-    const t='! UPDATE AVAILABLE - TAP'; drawText(t,b.x+(b.w-textW(t,1))/2,b.y+9,1,C.white); }
+    const t='! UPDATE AVAILABLE - TAP'; drawText(t,b.x+(b.w-textW(t,1))/2,b.y+8,1,C.white);
+    const nt='NEW: '+(updateNote||'IMPROVEMENTS & FIXES'); drawText(nt,(W-textW(nt,1))/2,H-16,1,C.gold); }
   else textCS('TAP AN OPTION',H-16,1,C.cream,C.black);
 }
 
@@ -721,13 +722,14 @@ function drawToasts(){
   if(toastT>150){ toasts.shift(); toastT=0; }
 }
 const SHARE_URL='https://michaeltholland.github.io/agent-mode/';
-const APP_VERSION='1.1';     // bump every deploy; the update check compares against the live file
-let updateReady=false;
+const APP_VERSION='1.2';     // bump every deploy; the update check compares against the live file
+const WHATS_NEW='FREE AIM, BOUNCE SHOTS + CLAN RANKS';   // one-line highlight shown on the update prompt
+let updateReady=false, updateNote='';
 function updateCheck(){
   if(typeof fetch!=='function') return;
   fetch(SHARE_URL+'index.html?cb='+Date.now(),{cache:'no-store'})
     .then(r=>r.ok?r.text():Promise.reject())
-    .then(t=>{ const m=t.match(/APP_VERSION='([^']+)'/); if(m&&m[1]&&m[1]!==APP_VERSION) updateReady=true; })
+    .then(t=>{ const m=t.match(/APP_VERSION='([^']+)'/); if(m&&m[1]&&m[1]!==APP_VERSION){ updateReady=true; const w=t.match(/WHATS_NEW='([^']*)'/); updateNote=w?w[1]:''; } })
     .catch(()=>{});
 }
 function doUpdate(){ try{ window.location.replace(SHARE_URL+'?v='+Date.now()); }catch(e){ try{ window.location.reload(); }catch(_){} } }
