@@ -180,12 +180,21 @@ function vgrad(x,y,w,h,c1,c2){ const g=ctx.createLinearGradient(x,y,x,y+h); g.ad
 const HI={g1:0};
 try{ HI.g1=+localStorage.getItem('lax4_hi1')||0; }catch(e){}
 function saveHi(){ try{ localStorage.setItem('lax4_hi1',HI.g1); }catch(e){} }
-// leaderboard (top 10, stored on this device)
-let LB=[];
+// leaderboard
+let LB=[], LBTOTAL=0;     // LBTOTAL = total players worldwide (for the top-30% cut + titles)
 try{ LB=JSON.parse(localStorage.getItem('lax4_lb')||'[]')||[]; if(!Array.isArray(LB)) LB=[]; }catch(e){ LB=[]; }
+LBTOTAL=LB.length;
 function lbSave(){ try{ localStorage.setItem('lax4_lb',JSON.stringify(LB)); }catch(e){} }
 function lbQualifies(s){ return s>0 && (LB.length<10 || s>LB[LB.length-1].s); }
-function lbInsert(n,s){ LB.push({n:n,s:s}); LB.sort((a,b)=>b.s-a.s); LB=LB.slice(0,10); lbSave(); return LB.indexOf(LB.find(e=>e.n===n&&e.s===s)); }
+function lbInsert(n,s){ LB.push({n:n,s:s}); LB.sort((a,b)=>b.s-a.s); LB=LB.slice(0,60); lbSave(); return LB.indexOf(LB.find(e=>e.n===n&&e.s===s)); }
+// rank titles: a new tier every 25 players
+const TITLES=['ALL-AMERICAN','ALL-STAR','STARTER','VARSITY','JUNIOR VARSITY','ROOKIE','WALK-ON','PROSPECT'];
+const TIER_COL=['#ffd23f','#cfd6e6','#d9974f','#7fd8ff','#37c66b','#7a5cff','#ff5ca8','#9aa3b2'];
+function rankTier(rank){ return Math.floor((Math.max(1,rank)-1)/25); }
+function rankTitle(rank){ const t=rankTier(rank); return t<TITLES.length?TITLES[t]:('TIER '+(t+1)); }
+function tierColor(rank){ return TIER_COL[rankTier(rank)%TIER_COL.length]; }
+// how many rows to show: the top 30% of the world (but always at least a full top 10)
+function lbShownCount(){ const total=LBTOTAL||LB.length; return clamp(Math.ceil(total*0.3), Math.min(10,LB.length), LB.length); }
 // ---- global leaderboard (Supabase) ----
 const SUPA_URL='https://xmmhaylumsdktljmxjgv.supabase.co';
 const SUPA_KEY='sb_publishable_MkMrj9PwzdNqUIua69e7Gg_F1uydGSt';
@@ -194,9 +203,9 @@ let lbStatus='local';   // local | loading | global | offline
 function lbFetch(){
   if(typeof fetch!=='function') return;
   lbStatus='loading';
-  fetch(SUPA_URL+'/rest/v1/scores?select=name,score&order=score.desc&limit=10',{headers:SUPA_HEAD})
-    .then(r=>r.ok?r.json():Promise.reject(r.status))
-    .then(rows=>{ if(Array.isArray(rows)){ LB=rows.map(r=>({n:(''+r.name).slice(0,3).toUpperCase(),s:r.score|0})); lbSave(); lbStatus='global'; } })
+  fetch(SUPA_URL+'/rest/v1/scores?select=name,score&order=score.desc&limit=60',{headers:Object.assign({Prefer:'count=exact'},SUPA_HEAD)})
+    .then(res=>{ if(!res.ok) return Promise.reject(res.status); const cr=res.headers&&res.headers.get&&res.headers.get('content-range'); LBTOTAL=(cr&&cr.indexOf('/')>=0)?(parseInt(cr.split('/')[1])||0):0; return res.json(); })
+    .then(rows=>{ if(Array.isArray(rows)){ LB=rows.map(r=>({n:(''+r.name).slice(0,3).toUpperCase(),s:r.score|0})); if(!LBTOTAL) LBTOTAL=LB.length; lbSave(); lbStatus='global'; } })
     .catch(()=>{ lbStatus='offline'; });
 }
 function lbSubmit(name,score){
@@ -661,8 +670,8 @@ function tutorial(title,lines){
 // ====================== GAME OVER ======================
 let over={score:0,best:0,nb:false,t:0};
 let entry={ini:[0,0,0],score:0};
-let lb={from:'MENU',newRank:-1,mine:null};
-function lbOpen(from){ lb.from=from; if(from!=='GAME') lb.mine=null; lbFetch(); state=S.LB; }
+let lb={from:'MENU',newRank:-1,mine:null,page:0};
+function lbOpen(from){ lb.from=from; lb.page=0; if(from!=='GAME') lb.mine=null; lbFetch(); state=S.LB; }
 function submitScore(name,score){ lbInsert(name,score); lb.mine={n:name,s:score}; lb.from='GAME'; lbSubmit(name,score); }
 function endGame(score){ over.score=score; over.t=0; over.best=HI.g1; over.nb=false;
   if(score>HI.g1){ over.nb=true; HI.g1=score; over.best=score; saveHi(); spawn(W/2,180,40,[C.yellow,C.green,C.gold,C.white]); }
@@ -778,24 +787,41 @@ function drawEntry(){
 }
 
 // ====================== LEADERBOARD ======================
-function lbUpdate(){ let p; while((p=consumeTap())){
+const LB_PER=9;
+const LB_PREV={x:24,y:326,w:62,h:30}, LB_NEXT={x:W-86,y:326,w:62,h:30};
+function lbPages(){ return Math.max(1, Math.ceil(lbShownCount()/LB_PER)); }
+function lbUpdate(){ if(lb.page>=lbPages()) lb.page=lbPages()-1; let p; while((p=consumeTap())){
   if(hit(p,OV_PLAY)){ g1Init(); state=S.G1; return; }
   if(hit(p,OV_SHARE)){ shareGame(HI.g1); SFX.ui(); return; }
+  if(hit(p,LB_PREV)&&lb.page>0){ lb.page--; SFX.ui(); return; }
+  if(hit(p,LB_NEXT)&&lb.page<lbPages()-1){ lb.page++; SFX.ui(); return; }
   if(hit(p,OV_MENU)||p.x<0){ state=S.MENU; return; } }}
 function drawLeaderboard(){
   vgrad(0,0,W,H,'#101a3a','#04060e');
-  textCS('LEADERBOARD',54,3,C.gold,C.black);
-  const sub=lbStatus==='loading'?'LOADING WORLD RANKS...':lbStatus==='global'?'TOP 10 IN THE WORLD':lbStatus==='offline'?'OFFLINE - LAST SEEN RANKS':'TOP 10';
-  textC(sub,84,1,lbStatus==='global'?C.green:C.grey);
-  if(LB.length===0){ if(lbStatus==='loading'){ textC('LOADING...',150,1,C.cream); } else { textC('NO SCORES YET -',150,1,C.cream); textC('GO BURY SOME CORNERS!',170,1,C.cream); } }
-  else { let y=104; for(let i=0;i<LB.length;i++){ const e=LB[i], hl=(lb.mine&&e.n===lb.mine.n&&e.s===lb.mine.s);
-    if(hl){ ctx.fillStyle='rgba(255,210,63,0.16)'; ctx.fillRect(28,y-3,W-56,24); }
-    const col=hl?C.yellow:C.cream;
-    drawText((i+1)+'.', 36, y, 2, hl?C.gold:C.grey);
-    drawText(e.n, 96, y, 2, col);
-    drawText(''+e.s, W-44-textW(''+e.s,2), y, 2, col);
-    y+=27;
-  }}
+  textCS('LEADERBOARD',46,3,C.gold,C.black);
+  const total=LBTOTAL||LB.length;
+  const sub=lbStatus==='loading'?'LOADING WORLD RANKS...':lbStatus==='global'?('TOP 30% OF '+total+' PLAYERS'):lbStatus==='offline'?'OFFLINE - LAST SEEN RANKS':('TOP '+LB.length);
+  textC(sub,76,1.2,lbStatus==='global'?C.green:C.grey);
+  // your rank + title banner
+  let myRank=-1; if(lb.mine){ for(let i=0;i<LB.length;i++){ if(LB[i].n===lb.mine.n&&LB[i].s===lb.mine.s){ myRank=i+1; break; } } }
+  if(myRank>0){ ctx.fillStyle='rgba(255,210,63,0.12)'; ctx.fillRect(20,92,W-40,20);
+    const tt='YOU: '+rankTitle(myRank)+'  #'+myRank;
+    drawText(tt,(W-textW(tt,1.2))/2,96,1.2,tierColor(myRank)); }
+  if(LB.length===0){ if(lbStatus==='loading'){ textC('LOADING...',160,1.4,C.cream); } else { textC('NO SCORES YET -',156,1.3,C.cream); textC('GO BURY SOME CORNERS!',178,1.3,C.cream); } }
+  else { const shown=lbShownCount(), start=lb.page*LB_PER, end=Math.min(shown,start+LB_PER);
+    let y=120; for(let i=start;i<end;i++){ const e=LB[i], rank=i+1, hl=(lb.mine&&e.n===lb.mine.n&&e.s===lb.mine.s);
+      if(hl){ ctx.fillStyle='rgba(255,210,63,0.16)'; ctx.fillRect(24,y-2,W-48,21); }
+      drawText(rank+'.', 30, y, 1.6, tierColor(rank));
+      drawText(e.n, 92, y, 1.6, hl?C.yellow:C.cream);
+      drawText(''+e.s, W-40-textW(''+e.s,1.6), y, 1.6, hl?C.yellow:C.cream);
+      y+=22;
+    }
+    if(lbPages()>1){
+      drawBtn(LB_PREV,false); glyph('LT',LB_PREV.x+22,LB_PREV.y+9,3,lb.page>0?C.cream:C.dgrey);
+      drawBtn(LB_NEXT,false); glyph('GT',LB_NEXT.x+22,LB_NEXT.y+9,3,lb.page<lbPages()-1?C.cream:C.dgrey);
+      const pg='PAGE '+(lb.page+1)+' / '+lbPages(); drawText(pg,(W-textW(pg,1))/2,LB_PREV.y+11,1,C.grey);
+    }
+  }
   drawBtn(OV_PLAY,false); ctx.fillStyle=C.green; ctx.fillRect(OV_PLAY.x,OV_PLAY.y,OV_PLAY.w,3);
   drawText('PLAY',OV_PLAY.x+OV_PLAY.w/2-textW('PLAY',2)/2,OV_PLAY.y+16,2,C.white);
   drawBtn(OV_MENU,false); ctx.fillStyle=C.yellow; ctx.fillRect(OV_MENU.x,OV_MENU.y,OV_MENU.w,3);
@@ -890,6 +916,7 @@ function drawBadges(){
 // ====================== LOCKER ROOM (gear + upgrades) ======================
 let lockerTab=0, lockerPart=0;
 const PARTS=[
+  {key:'initials',label:'INITIALS'},
   {key:'num',   label:'JERSEY #'},
   {key:'jersey',label:'JERSEY'},
   {key:'numCol',label:'NUMBER'},
@@ -898,6 +925,9 @@ const PARTS=[
   {key:'shaft', label:'STICK SHAFT'},
   {key:'head',  label:'STICK HEAD'}
 ];
+const LK_INI=[0,1,2].map(i=>({ up:{x:54+i*68,y:248,w:54,h:30}, box:{x:54+i*68,y:282,w:54,h:40}, dn:{x:54+i*68,y:326,w:54,h:30} }));
+function iniChar(i){ const s=(PROFILE.initials||'AAA').toUpperCase().padEnd(3,'A'); return s.charAt(i)||'A'; }
+function cycleIni(i,d){ let c=(iniChar(i).charCodeAt(0)-65+26+d)%26; const a=(PROFILE.initials||'AAA').toUpperCase().padEnd(3,'A').split(''); a[i]=String.fromCharCode(65+c); PROFILE.initials=a.join(''); SFX.ui(); profSave(); }
 function lockerOpen(){ lockerTab=0; lockerPart=0; state=S.LOCKER; }
 const LK_TAB1={x:20,y:44,w:124,h:32}, LK_TAB2={x:156,y:44,w:124,h:32};
 const LK_PARTL={x:18,y:210,w:32,h:32}, LK_PARTR={x:W-50,y:210,w:32,h:32};
@@ -917,7 +947,9 @@ function lockerUpdate(){ let p; while((p=consumeTap())){
     if(hit(p,LK_PARTL)){ lockerPart=(lockerPart+PARTS.length-1)%PARTS.length; SFX.ui(); return; }
     if(hit(p,LK_PARTR)){ lockerPart=(lockerPart+1)%PARTS.length; SFX.ui(); return; }
     const part=PARTS[lockerPart];
-    if(part.key==='num'){
+    if(part.key==='initials'){
+      for(let i=0;i<3;i++){ if(hit(p,LK_INI[i].up)){ cycleIni(i,1); return; } if(hit(p,LK_INI[i].dn)){ cycleIni(i,-1); return; } }
+    } else if(part.key==='num'){
       if(hit(p,LK_MINUS)){ PROFILE.num=(PROFILE.num+99)%100; SFX.ui(); profSave(); return; }
       if(hit(p,LK_PLUS)){ PROFILE.num=(PROFILE.num+1)%100; SFX.ui(); profSave(); return; }
     } else {
@@ -955,7 +987,15 @@ function drawLocker(){
     drawBtn(LK_PARTR,false); glyph('GT',LK_PARTR.x+9,LK_PARTR.y+9,3,C.cream);
     const part=PARTS[lockerPart];
     textC(part.label,217,2,C.cream);
-    if(part.key==='num'){
+    if(part.key==='initials'){
+      for(let i=0;i<3;i++){ const c=LK_INI[i];
+        drawBtn(c.up,false); glyph('UP',c.up.x+c.up.w/2-7,c.up.y+8,3,C.cream);
+        ctx.fillStyle=C.panelHi; ctx.fillRect(c.box.x,c.box.y,c.box.w,c.box.h);
+        ctx.fillStyle=C.gold; ctx.fillRect(c.box.x,c.box.y,c.box.w,3); ctx.fillRect(c.box.x,c.box.y+c.box.h-3,c.box.w,3);
+        drawText(iniChar(i),c.box.x+c.box.w/2-textW(iniChar(i),4)/2,c.box.y+8,4,C.white);
+        drawBtn(c.dn,false); glyph('DN',c.dn.x+c.dn.w/2-7,c.dn.y+8,3,C.cream); }
+      textC('USED ON THE LEADERBOARD',H-92,1,C.grey);
+    } else if(part.key==='num'){
       drawBtn(LK_MINUS,false); drawText('-',LK_MINUS.x+(LK_MINUS.w-textW('-',3))/2,LK_MINUS.y+14,3,C.white);
       const ns=''+PROFILE.num; drawText(ns,W/2-textW(ns,5)/2,262,5,C.yellow);
       drawBtn(LK_PLUS,false); drawText('+',LK_PLUS.x+(LK_PLUS.w-textW('+',3))/2,LK_PLUS.y+14,3,C.white);
