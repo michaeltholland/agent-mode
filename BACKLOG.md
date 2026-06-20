@@ -2,6 +2,35 @@
 
 Running list of ideas to revisit. Nothing here is live yet.
 
+## NEXT UP — Target Challenge (anti-camping level progression)
+Goal: to clear a level you must hit all FIVE required targets:
+top-left, top-right, bottom-left, bottom-right corners, AND the five hole
+(between the goalie's legs). This stops players from parking on one side,
+dragging the keeper over, and spamming the same corner.
+
+How it should work:
+- A single TARGET marker appears in ONE required zone at a time, chosen at
+  RANDOM from the zones not yet completed.
+- Player must SCORE in that zone (beat the keeper there). On success the zone
+  lights up / checks off and the target jumps to another random uncompleted
+  zone.
+- Clear all 5 -> level up (advance), with a celebration. Show progress (e.g.,
+  5 little goal markers that fill in, or "3/5 TARGETS").
+- Because the target hops across all 4 corners + the middle, the player has to
+  move and re-aim around the whole cage (no camping).
+
+Decisions to confirm when we build:
+1. Replace the current 10-shots-for-points format, or layer on top (still earn
+   points/coins, but must clear the 5 targets to advance the level)?
+2. Shots per level: fixed number (e.g., 10) or unlimited until cleared (shot
+   clock still ticks each shot)?
+3. If the keeper SAVES a target shot, does it just not count (try again), or
+   cost something?
+4. Tie "level" to clearing targets (instead of / in addition to games played),
+   and keep difficulty ramping per level.
+Note: corners + five-hole zones already exist in code (g1FiveHoleHit, the
+corner labels TOP/LOW CORNER), so detecting "which zone a goal hit" is easy.
+
 ## Trivia
 - **"DID YOU KNOW?" fact on CORRECT answers too** — right now correct answers
   stay snappy (just "CORRECT! +coins"); wrong answers show the fact. Consider
