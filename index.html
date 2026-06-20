@@ -11,7 +11,7 @@
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; -webkit-user-select:none; user-select:none; }
   html,body { margin:0; padding:0; height:100%; background:#05070f; overflow:hidden; font-family:'Courier New',monospace; touch-action:none; }
   #wrap { width:100%; height:100%; display:flex; align-items:center; justify-content:center; }
-  canvas { image-rendering:pixelated; image-rendering:crisp-edges; background:#000; box-shadow:0 0 0 3px #141a30, 0 0 50px #000; cursor:pointer; }
+  canvas { background:#000; box-shadow:0 0 0 3px #141a30, 0 0 50px #000; cursor:pointer; }
 </style>
 </head>
 <body>
@@ -30,6 +30,10 @@ function resize(){
   const s=Math.min(aw/W, ah/H);
   canvas.style.width=Math.round(W*s)+'px';
   canvas.style.height=Math.round(H*s)+'px';
+  const pxs=Math.min(3, Math.max(2, Math.ceil((window.devicePixelRatio||1)*s)));   // supersample for crisp text
+  canvas.width=W*pxs; canvas.height=H*pxs;
+  ctx.setTransform(pxs,0,0,pxs,0,0);
+  ctx.imageSmoothingEnabled=false;
 }
 window.addEventListener('resize',resize);
 window.addEventListener('orientationchange',()=>setTimeout(resize,100));
@@ -78,13 +82,12 @@ const FONT={
  'UP':["00100","01110","10101","00100","00100"],'DN':["00100","00100","10101","01110","00100"],
  ' ':["00000","00000","00000","00000","00000"]
 };
-function drawText(str,x,y,s,col){ s=s||1; ctx.fillStyle=col||C.white; let cx=x;
-  for(const ch of (''+str)){ const g=FONT[ch]||FONT[(''+ch).toUpperCase()]||FONT['?'];
-    for(let r=0;r<5;r++){ const row=g[r]; if(!row) continue; for(let i=0;i<5;i++) if(row[i]==='1') ctx.fillRect(cx+i*s,y+r*s,s,s); }
-    cx+=6*s; } return cx; }
-function textW(str,s){ return (''+str).length*6*s - s; }
+// crisp, readable real font (the sprites stay pixel-art; only text is "normal")
+function lxFont(s){ return 'bold '+Math.round(7.5*(s||1))+'px "Trebuchet MS",system-ui,-apple-system,"Segoe UI",Arial,sans-serif'; }
+function drawText(str,x,y,s,col){ s=s||1; ctx.font=lxFont(s); ctx.textBaseline='top'; ctx.textAlign='left'; ctx.fillStyle=col||C.white; ctx.fillText(''+str,x,y); return x+ctx.measureText(''+str).width; }
+function textW(str,s){ ctx.font=lxFont(s||1); return ctx.measureText(''+str).width; }
 function textC(str,y,s,col){ drawText(str,(W-textW(str,s))/2,y,s,col); }
-function textS(str,x,y,s,col,sh){ drawText(str,x+s,y+s,s,sh||C.black); drawText(str,x,y,s,col); }
+function textS(str,x,y,s,col,sh){ const o=Math.max(1,Math.round((s||1))); drawText(str,x+o,y+o,s,sh||C.black); drawText(str,x,y,s,col); }
 function textCS(str,y,s,col,sh){ textS(str,(W-textW(str,s))/2,y,s,col,sh); }
 // glyph helpers for arrow icons (size in px)
 function glyph(name,x,y,s,col){ ctx.fillStyle=col||C.white; const g=FONT[name]; for(let r=0;r<5;r++)for(let i=0;i<5;i++) if(g[r][i]==='1') ctx.fillRect(x+i*s,y+r*s,s,s); }
@@ -722,8 +725,8 @@ function drawToasts(){
   if(toastT>150){ toasts.shift(); toastT=0; }
 }
 const SHARE_URL='https://michaeltholland.github.io/agent-mode/';
-const APP_VERSION='1.5';     // bump every deploy; the update check compares against the live file
-const WHATS_NEW='TRIVIA NOW ONCE PER SESSION';   // one-line highlight shown on the update prompt
+const APP_VERSION='1.6';     // bump every deploy; the update check compares against the live file
+const WHATS_NEW='CLEAN, READABLE TEXT';   // one-line highlight shown on the update prompt
 let updateReady=false, updateNote='';
 function updateCheck(){
   if(typeof fetch!=='function') return;
