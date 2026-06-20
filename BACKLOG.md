@@ -6,9 +6,21 @@ Running list of ideas to revisit. Nothing here is live yet.
 - **"DID YOU KNOW?" fact on CORRECT answers too** — right now correct answers
   stay snappy (just "CORRECT! +coins"); wrong answers show the fact. Consider
   showing a quick fact on correct answers as well in a future pass.
-- Trivia **frequency toggle** — currently shows every game start. Option to make
-  it once per session, or every Nth game, if it feels too frequent on replays.
+- Trivia **frequency toggle** — now once per session. Option for every Nth game.
 - **Expand the question bank** (more history/rules/shooter-IQ questions).
+
+### Trivia to add next update — "ELITE TEAM vs AVERAGE TEAM" (Lacrosse IQ)
+Turn each into a question (elite habit = correct answer):
+1. Elite teams communicate... CONSTANTLY (avg: occasionally)
+2. Off the ball, elite players move with... PURPOSE (avg: watch the ball)
+3. Elite offenses... CREATE OPPORTUNITIES (avg: wait for them)
+4. Elite teams play... FAST BUT NOT RUSHED (avg: in a hurry)
+5. Elite teams trust... TEAM SYSTEMS (avg: rely on individual plays)
+6. After a mistake, elite players... RECOVER QUICKLY (avg: dwell on errors)
+7. Elite teams win... GROUND BALLS CONSISTENTLY (avg: give away possessions)
+8. Under pressure, elite players... MAKE SMART DECISIONS (avg: force risky plays)
+(Also still have the earlier "GOOD vs GREAT SHOOTER" tips already partly used.)
+
 
 ## Balance / tuning (easy one-liners when we want them)
 - Bounce-shot strength and how far you push the stick to enter the bounce zone.
