@@ -214,7 +214,7 @@ function curLevel(){ return STATS.games+1; }                 // climbs every gam
 function diffFactor(){ return clamp((curLevel()-1)/35,0,0.85); }  // difficulty ramps to ~LV36 then caps
 // ---- player profile: appearance, coins, upgrades ----
 const PALETTE=['#e23b3b','#ff8c1a','#ffd23f','#37c66b','#1f9be0','#7a5cff','#ff5ca8','#ffffff','#0e1322','#1f2633','#9aa3b2','#7a5a2b'];
-let PROFILE={num:15,jersey:'#e23b3b',numCol:'#ffffff',helmet:'#0e1322',pants:'#1f2633',shaft:'#7a5a2b',head:'#ff8c1a',coins:0,stickLv:0,trainLv:0,accLv:0};
+let PROFILE={num:15,jersey:'#e23b3b',numCol:'#ffffff',helmet:'#0e1322',pants:'#1f2633',shaft:'#7a5a2b',head:'#ff8c1a',coins:0,stickLv:0,trainLv:0,accLv:0,initials:''};
 try{ PROFILE=Object.assign(PROFILE, JSON.parse(localStorage.getItem('lax4_profile')||'{}')||{}); }catch(e){}
 function profSave(){ try{ localStorage.setItem('lax4_profile',JSON.stringify(PROFILE)); }catch(e){} }
 function shade(hex,p){ const n=parseInt((hex||'#000').slice(1),16); let r=(n>>16)&255,g=(n>>8)&255,b=n&255;
@@ -663,6 +663,7 @@ let over={score:0,best:0,nb:false,t:0};
 let entry={ini:[0,0,0],score:0};
 let lb={from:'MENU',newRank:-1,mine:null};
 function lbOpen(from){ lb.from=from; if(from!=='GAME') lb.mine=null; lbFetch(); state=S.LB; }
+function submitScore(name,score){ lbInsert(name,score); lb.mine={n:name,s:score}; lb.from='GAME'; lbSubmit(name,score); }
 function endGame(score){ over.score=score; over.t=0; over.best=HI.g1; over.nb=false;
   if(score>HI.g1){ over.nb=true; HI.g1=score; over.best=score; saveHi(); spawn(W/2,180,40,[C.yellow,C.green,C.gold,C.white]); }
   STATS.games++; STATS.goals+=G1.goals; STATS.bestCombo=Math.max(STATS.bestCombo,G1.maxCombo);
@@ -675,7 +676,10 @@ function endGame(score){ over.score=score; over.t=0; over.best=HI.g1; over.nb=fa
   if(STATS.games>=10) unlock('vet'); if(STATS.goals>=100) unlock('cent');
   if(nb.length){ achSave(); for(const id of nb){ const a=ACH.find(x=>x.id===id); pushToast(a?a.n:id); } }
   over.medal=medalFor(score);
-  if(lbQualifies(score)){ entry.ini=[0,0,0]; entry.score=score; state=S.ENTRY; }
+  if(lbQualifies(score)){
+    if(PROFILE.initials){ submitScore(PROFILE.initials,score); state=S.LB; }   // reuse saved initials
+    else { entry.ini=[0,0,0]; entry.score=score; state=S.ENTRY; }
+  }
   else state=S.OVER; }
 // badge-unlock toasts (shown over any screen)
 let toasts=[], toastT=0;
@@ -754,7 +758,7 @@ for(let i=0;i<3;i++){ const x=67+i*60; EN_BOX[i]={x,y:198,w:46,h:50}; EN_UP[i]={
 const EN_DONE={x:80,y:320,w:W-160,h:48};
 function entryUpdate(){ let p; while((p=consumeTap())){
   for(let i=0;i<3;i++){ if(hit(p,EN_UP[i])){ entry.ini[i]=(entry.ini[i]+1)%26; SFX.ui(); } if(hit(p,EN_DN[i])){ entry.ini[i]=(entry.ini[i]+25)%26; SFX.ui(); } }
-  if(hit(p,EN_DONE)||p.x<0){ const name=entry.ini.map(c=>String.fromCharCode(65+c)).join(''); lbInsert(name,entry.score); lb.mine={n:name,s:entry.score}; lb.from='GAME'; lbSubmit(name,entry.score); SFX.start(); state=S.LB; return; }
+  if(hit(p,EN_DONE)||p.x<0){ const name=entry.ini.map(c=>String.fromCharCode(65+c)).join(''); PROFILE.initials=name; profSave(); submitScore(name,entry.score); SFX.start(); state=S.LB; return; }
 }}
 function drawEntry(){
   vgrad(0,0,W,H,'#101a3a','#04060e');
