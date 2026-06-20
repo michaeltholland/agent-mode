@@ -187,9 +187,9 @@ LBTOTAL=LB.length;
 function lbSave(){ try{ localStorage.setItem('lax4_lb',JSON.stringify(LB)); }catch(e){} }
 function lbQualifies(s){ return s>0 && (LB.length<10 || s>LB[LB.length-1].s); }
 function lbInsert(n,s){ LB.push({n:n,s:s}); LB.sort((a,b)=>b.s-a.s); LB=LB.slice(0,60); lbSave(); return LB.indexOf(LB.find(e=>e.n===n&&e.s===s)); }
-// rank titles: a new tier every 25 players
-const TITLES=['ALL-AMERICAN','ALL-STAR','STARTER','VARSITY','JUNIOR VARSITY','ROOKIE','WALK-ON','PROSPECT'];
-const TIER_COL=['#ffd23f','#cfd6e6','#d9974f','#7fd8ff','#37c66b','#7a5cff','#ff5ca8','#9aa3b2'];
+// rank titles: a new tier every 25 players - Six Nations (Haudenosaunee) clan animals, top down to lowest
+const TITLES=['BEAR CLAN','WOLF CLAN','TURTLE CLAN','HAWK CLAN','EEL CLAN','HERON CLAN','BEAVER CLAN','SNIPE CLAN','DEER CLAN'];
+const TIER_COL=['#ffd23f','#cfd6e6','#d9974f','#7fd8ff','#37c66b','#7a5cff','#ff5ca8','#caa86a','#9aa3b2'];
 function rankTier(rank){ return Math.floor((Math.max(1,rank)-1)/25); }
 function rankTitle(rank){ const t=rankTier(rank); return t<TITLES.length?TITLES[t]:('TIER '+(t+1)); }
 function tierColor(rank){ return TIER_COL[rankTier(rank)%TIER_COL.length]; }
