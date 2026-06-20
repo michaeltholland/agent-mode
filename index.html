@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>Lacrosse Shootout</title>
 <style>
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; -webkit-user-select:none; user-select:none; }
@@ -391,8 +394,10 @@ const MENU_BTNS=[
   {label:'FEEDBACK',    r:{x:24,y:404,w:HWg,h:46},       go:()=>{ surveyOpen('MENU'); }},
   {label:'SHARE GAME',  r:{x:36+HWg,y:404,w:HWg,h:46},   go:()=>{ shareGame(0); }}
 ];
+const UPDATE_BTN={x:40,y:H-32,w:W-80,h:24};
 function menuUpdate(){
   let p; while((p=consumeTap())){
+    if(updateReady && p.x>=0 && hit(p,UPDATE_BTN)){ doUpdate(); return; }
     if(p.x<0){ MENU_BTNS[menuSel].go(); SFX.start(); return; }
     for(let i=0;i<MENU_BTNS.length;i++){ if(hit(p,MENU_BTNS[i].r)){ menuSel=i; SFX.start(); MENU_BTNS[i].go(); return; } }
   }
@@ -422,7 +427,11 @@ function drawMenu(){
     drawText(MENU_BTNS[i].label,b.x+(b.w-textW(MENU_BTNS[i].label,sc))/2,b.y+(b.h-5*sc)/2,sc,sel?C.white:C.cream);
     if(MENU_BTNS[i].label==='SHARE GAME') shareBtn={x:b.x,y:b.y,w:b.w,h:b.h,score:0};
   }
-  textCS('TAP AN OPTION',H-18,1,C.cream,C.black);
+  drawText('v'+APP_VERSION,6,H-12,1,C.dgrey);
+  if(updateReady){ const b=UPDATE_BTN, fl=frame%20<12;
+    ctx.fillStyle=fl?C.green:'#1f7a44'; ctx.fillRect(b.x,b.y,b.w,b.h); ctx.fillStyle=C.white; ctx.fillRect(b.x,b.y,b.w,2);
+    const t='! UPDATE AVAILABLE - TAP'; drawText(t,b.x+(b.w-textW(t,1))/2,b.y+9,1,C.white); }
+  else textCS('TAP AN OPTION',H-16,1,C.cream,C.black);
 }
 
 // ====================== HELP ======================
@@ -454,6 +463,7 @@ const AIM_MINY=8, AIM_MAXY=308;                  // down past the goal line onto
 const GOAL_LINE=NET1.y+NET1.h;                   // aim below this = bounce off the turf
 const FH_OPEN=80, FH_SHUT=150;                  // five hole opens more often now
 const SHOT_CLOCK=300;                           // 5 seconds at 60fps to get the shot off
+const EXIT_BTN={x:4,y:3,w:46,h:20};             // quit to menu mid-game
 // the attacker roams the field; the CREASE (half-circle at the goal mouth) is off-limits
 const SH_MINX=38, SH_MAXX=W-38, SH_MINY=232, SH_MAXY=424;
 const CREASE={cx:AIM_CX, cy:NET1.y+NET1.h, r:74};
@@ -507,6 +517,8 @@ function g1Update(){
   const openLen=Math.round((FH_OPEN+24)-d*16);         // five hole open longer: 104 -> 88 frames
   G1.fhT=(G1.fhT+1)%(openLen+FH_SHUT); G1.fhOpen=G1.fhT<openLen;
   if(G1.tut){ if(consumeTap()){ G1.tut=false; resetSticks(); } rReleased=false; return; }
+  // EXIT button - quit to the menu from any phase (scan without disturbing other taps)
+  for(let i=0;i<pressQueue.length;i++){ if(pressQueue[i].x>=0 && hit(pressQueue[i],EXIT_BTN)){ pressQueue.splice(i,1); state=S.MENU; resetSticks(); SFX.ui(); return; } }
   const gk=G1.gk, mn=NET1.x+gk.bw/2+2, mx=NET1.x+NET1.w-gk.bw/2-2;
   // LEFT STICK / WASD: move the attacker in any direction (swings the angle, closes the gap)
   if(G1.phase!=='foul'){
@@ -640,7 +652,9 @@ function g1Draw(){
   if(sR.id!==null && G1.phase==='aim'){ textCS('RELEASE TO SHOOT',H-150,1,frame%10<6?C.green:C.cream,C.black); }
   // HUD
   ctx.fillStyle=C.panel; ctx.fillRect(0,0,W,26); ctx.fillStyle=C.gold; ctx.fillRect(0,24,W,2);
-  drawText('SCORE',8,4,1,C.grey); drawText(''+G1.score,8,13,2,C.white);
+  ctx.fillStyle='#3a2030'; ctx.fillRect(EXIT_BTN.x,EXIT_BTN.y,EXIT_BTN.w,EXIT_BTN.h); ctx.fillStyle=C.red; ctx.fillRect(EXIT_BTN.x,EXIT_BTN.y,EXIT_BTN.w,2);
+  drawText('EXIT',EXIT_BTN.x+(EXIT_BTN.w-textW('EXIT',1))/2,EXIT_BTN.y+8,1,C.cream);
+  drawText('SCORE',56,4,1,C.grey); drawText(''+G1.score,56,13,2,C.white);
   drawText('GOALS',W/2-16,4,1,C.grey); drawText(G1.goals+'/10',W/2-16,13,2,C.green);
   drawText('SHOTS',W-58,4,1,C.grey); drawText(''+G1.shots,W-30,13,2,C.yellow);
   // shot clock — depleting bar under the HUD, flashes red in the final 1.25s
@@ -707,6 +721,17 @@ function drawToasts(){
   if(toastT>150){ toasts.shift(); toastT=0; }
 }
 const SHARE_URL='https://michaeltholland.github.io/agent-mode/';
+const APP_VERSION='1.1';     // bump every deploy; the update check compares against the live file
+let updateReady=false;
+function updateCheck(){
+  if(typeof fetch!=='function') return;
+  fetch(SHARE_URL+'index.html?cb='+Date.now(),{cache:'no-store'})
+    .then(r=>r.ok?r.text():Promise.reject())
+    .then(t=>{ const m=t.match(/APP_VERSION='([^']+)'/); if(m&&m[1]&&m[1]!==APP_VERSION) updateReady=true; })
+    .catch(()=>{});
+}
+function doUpdate(){ try{ window.location.replace(SHARE_URL+'?v='+Date.now()); }catch(e){ try{ window.location.reload(); }catch(_){} } }
+updateCheck();
 let lastShareT=0;            // dedupe: gesture handler + game-loop may both call
 let shareBtn=null;           // active share button rect (set each frame by the draw)
 let shareArm=null;           // share button the current tap STARTED on (prevents accidental fires)
@@ -929,20 +954,26 @@ const PARTS=[
 ];
 const LK_INI=[0,1,2].map(i=>({ up:{x:54+i*68,y:248,w:54,h:30}, box:{x:54+i*68,y:282,w:54,h:40}, dn:{x:54+i*68,y:326,w:54,h:30} }));
 function iniChar(i){ const s=(PROFILE.initials||'AAA').toUpperCase().padEnd(3,'A'); return s.charAt(i)||'A'; }
-function cycleIni(i,d){ let c=(iniChar(i).charCodeAt(0)-65+26+d)%26; const a=(PROFILE.initials||'AAA').toUpperCase().padEnd(3,'A').split(''); a[i]=String.fromCharCode(65+c); PROFILE.initials=a.join(''); SFX.ui(); profSave(); }
-function lockerOpen(){ lockerTab=0; lockerPart=0; state=S.LOCKER; }
+function cycleIni(i,d){ let c=(iniChar(i).charCodeAt(0)-65+26+d)%26; const a=(PROFILE.initials||'AAA').toUpperCase().padEnd(3,'A').split(''); a[i]=String.fromCharCode(65+c); PROFILE.initials=a.join(''); SFX.ui(); }
+// appearance is edited on a working copy; SAVE commits it, BACK discards it (purchases always commit)
+const APPEAR_KEYS=['num','jersey','numCol','helmet','pants','shaft','head','initials'];
+let lockerSnap={};
+function lockerOpen(){ lockerTab=0; lockerPart=0; lockerSnap={}; for(const k of APPEAR_KEYS) lockerSnap[k]=PROFILE[k]; state=S.LOCKER; }
+function lockerSave(){ profSave(); state=S.MENU; }
+function lockerCancel(){ for(const k of APPEAR_KEYS) PROFILE[k]=lockerSnap[k]; profSave(); state=S.MENU; }
 const LK_TAB1={x:20,y:44,w:124,h:32}, LK_TAB2={x:156,y:44,w:124,h:32};
 const LK_PARTL={x:18,y:210,w:32,h:32}, LK_PARTR={x:W-50,y:210,w:32,h:32};
 const LK_MINUS={x:58,y:256,w:54,h:50}, LK_PLUS={x:W-112,y:256,w:54,h:50};
 const LK_CARDY=[122,234,346];
 const LK_BUY1={x:W-100,y:154,w:80,h:38}, LK_BUY2={x:W-100,y:266,w:80,h:38}, LK_BUY3={x:W-100,y:378,w:80,h:38};
-const LK_BACK={x:20,y:H-46,w:W-40,h:38};
+const LK_SAVE={x:20,y:H-46,w:126,h:38}, LK_CANCEL={x:154,y:H-46,w:126,h:38};
 function lkSwatch(i){ return {x:33+(i%6)*40, y:262+((i/6)|0)*42, w:34, h:34}; }
 function buyUpgrade(key){ const lv=PROFILE[key]; if(lv>=UP_MAX) return; const c=upCost(lv);
   if(PROFILE.coins>=c){ PROFILE.coins-=c; PROFILE[key]=lv+1; profSave(); SFX.big(); }
   else { SFX.save(); pushToast('NOT ENOUGH COINS','SHOP'); } }
 function lockerUpdate(){ let p; while((p=consumeTap())){
-  if(hit(p,LK_BACK)||p.x<0){ profSave(); state=S.MENU; return; }
+  if(hit(p,LK_SAVE)||p.x<0){ SFX.start(); lockerSave(); return; }
+  if(hit(p,LK_CANCEL)){ SFX.ui(); lockerCancel(); return; }
   if(hit(p,LK_TAB1)){ lockerTab=0; SFX.ui(); return; }
   if(hit(p,LK_TAB2)){ lockerTab=1; SFX.ui(); return; }
   if(lockerTab===0){
@@ -952,10 +983,10 @@ function lockerUpdate(){ let p; while((p=consumeTap())){
     if(part.key==='initials'){
       for(let i=0;i<3;i++){ if(hit(p,LK_INI[i].up)){ cycleIni(i,1); return; } if(hit(p,LK_INI[i].dn)){ cycleIni(i,-1); return; } }
     } else if(part.key==='num'){
-      if(hit(p,LK_MINUS)){ PROFILE.num=(PROFILE.num+99)%100; SFX.ui(); profSave(); return; }
-      if(hit(p,LK_PLUS)){ PROFILE.num=(PROFILE.num+1)%100; SFX.ui(); profSave(); return; }
+      if(hit(p,LK_MINUS)){ PROFILE.num=(PROFILE.num+99)%100; SFX.ui(); return; }
+      if(hit(p,LK_PLUS)){ PROFILE.num=(PROFILE.num+1)%100; SFX.ui(); return; }
     } else {
-      for(let i=0;i<PALETTE.length;i++){ if(hit(p,lkSwatch(i))){ PROFILE[part.key]=PALETTE[i]; SFX.ui(); profSave(); return; } }
+      for(let i=0;i<PALETTE.length;i++){ if(hit(p,lkSwatch(i))){ PROFILE[part.key]=PALETTE[i]; SFX.ui(); return; } }
     }
   } else {
     if(hit(p,LK_BUY1)){ buyUpgrade('stickLv'); return; }
@@ -1011,8 +1042,10 @@ function drawLocker(){
     drawCard(LK_CARDY[1],'TRAINING','MOVE & AIM FASTER',PROFILE.trainLv,'+'+(4*PROFILE.trainLv)+'% SPEED',LK_BUY2);
     drawCard(LK_CARDY[2],'ACCURACY','TIGHTER SHOTS',PROFILE.accLv,'+'+Math.round(PROFILE.accLv*4)+'% AIM',LK_BUY3);
   }
-  drawBtn(LK_BACK,false); ctx.fillStyle=C.yellow; ctx.fillRect(LK_BACK.x,LK_BACK.y,LK_BACK.w,3);
-  drawText('SAVE & BACK',LK_BACK.x+(LK_BACK.w-textW('SAVE & BACK',2))/2,LK_BACK.y+14,2,C.white);
+  drawBtn(LK_SAVE,false); ctx.fillStyle=C.green; ctx.fillRect(LK_SAVE.x,LK_SAVE.y,LK_SAVE.w,3);
+  drawText('SAVE',LK_SAVE.x+(LK_SAVE.w-textW('SAVE',2))/2,LK_SAVE.y+13,2,C.white);
+  drawBtn(LK_CANCEL,false); ctx.fillStyle=C.red; ctx.fillRect(LK_CANCEL.x,LK_CANCEL.y,LK_CANCEL.w,3);
+  drawText('BACK',LK_CANCEL.x+(LK_CANCEL.w-textW('BACK',2))/2,LK_CANCEL.y+13,2,C.cream);
 }
 
 // ====================== MAIN LOOP (crash-safe) ======================
