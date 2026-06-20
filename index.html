@@ -418,21 +418,21 @@ function drawMenu(){
   ctx.strokeStyle=C.shaft; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(W/2+18,by+14); ctx.lineTo(W/2+4,by); ctx.stroke();
   ctx.fillStyle=C.orange; ctx.fillRect(W/2-2,by-8,10,10); ctx.fillStyle=C.crosse; ctx.fillRect(W/2-1,by-7,8,8);
   drawBall(W/2-6,by-3,5);
-  const info='BEST '+HI.g1+'   LV '+curLevel()+'   COINS '+PROFILE.coins;
-  drawText(info, (W-textW(info,1))/2, 222, 1, C.gold);
+  const info='BEST '+HI.g1+'  LV '+curLevel()+'  COINS '+PROFILE.coins;
+  drawText(info, (W-textW(info,1.35))/2, 220, 1.35, C.gold);
   for(let i=0;i<MENU_BTNS.length;i++){
-    const b=MENU_BTNS[i].r, sel=(i===menuSel), big=(i===0), sc=big?2:1;
+    const b=MENU_BTNS[i].r, sel=(i===menuSel), big=(i===0), sc=big?2.2:1.45;
     ctx.fillStyle=sel?C.panelHi:C.panel; ctx.fillRect(b.x,b.y,b.w,b.h);
     ctx.fillStyle=sel?C.yellow:C.dgrey; ctx.fillRect(b.x,b.y,b.w,3); ctx.fillRect(b.x,b.y+b.h-3,b.w,3); ctx.fillRect(b.x,b.y,3,b.h); ctx.fillRect(b.x+b.w-3,b.y,3,b.h);
     drawText(MENU_BTNS[i].label,b.x+(b.w-textW(MENU_BTNS[i].label,sc))/2,b.y+(b.h-5*sc)/2,sc,sel?C.white:C.cream);
     if(MENU_BTNS[i].label==='SHARE GAME') shareBtn={x:b.x,y:b.y,w:b.w,h:b.h,score:0};
   }
-  drawText('v'+APP_VERSION, W-6-textW('v'+APP_VERSION,1), 6, 1, C.dgrey);
+  drawText('v'+APP_VERSION, W-6-textW('v'+APP_VERSION,1.3), 6, 1.3, C.dgrey);
   if(updateReady){ const b=UPDATE_BTN, fl=frame%20<12;
     ctx.fillStyle=fl?C.green:'#1f7a44'; ctx.fillRect(b.x,b.y,b.w,b.h); ctx.fillStyle=C.white; ctx.fillRect(b.x,b.y,b.w,2);
-    const t='! UPDATE AVAILABLE - TAP'; drawText(t,b.x+(b.w-textW(t,1))/2,b.y+8,1,C.white);
-    const nt='NEW: '+(updateNote||'IMPROVEMENTS & FIXES'); drawText(nt,(W-textW(nt,1))/2,H-16,1,C.gold); }
-  else textCS('TAP AN OPTION',H-16,1,C.cream,C.black);
+    const t='! UPDATE AVAILABLE - TAP'; drawText(t,b.x+(b.w-textW(t,1.1))/2,b.y+7,1.1,C.white);
+    const nt='NEW: '+(updateNote||'IMPROVEMENTS & FIXES'); drawText(nt,(W-textW(nt,1))/2,H-15,1,C.gold); }
+  else textCS('TAP AN OPTION',H-16,1.4,C.cream,C.black);
 }
 
 // ====================== HELP ======================
@@ -650,14 +650,14 @@ function g1Draw(){
   const ra=sR.id!==null||keys.aimL||keys.aimR||keys.aimU||keys.aimD;
   drawJoy(LJOY,sL,'MOVE',la,C.blue);
   drawJoy(RJOY,sR,'AIM / RELEASE',ra,C.green);
-  if(sR.id!==null && G1.phase==='aim'){ textCS('RELEASE TO SHOOT',H-150,1,frame%10<6?C.green:C.cream,C.black); }
+  if(sR.id!==null && G1.phase==='aim'){ textCS('RELEASE TO SHOOT',H-150,1.4,frame%10<6?C.green:C.cream,C.black); }
   // HUD
   ctx.fillStyle=C.panel; ctx.fillRect(0,0,W,26); ctx.fillStyle=C.gold; ctx.fillRect(0,24,W,2);
   ctx.fillStyle='#3a2030'; ctx.fillRect(EXIT_BTN.x,EXIT_BTN.y,EXIT_BTN.w,EXIT_BTN.h); ctx.fillStyle=C.red; ctx.fillRect(EXIT_BTN.x,EXIT_BTN.y,EXIT_BTN.w,2);
-  drawText('EXIT',EXIT_BTN.x+(EXIT_BTN.w-textW('EXIT',1))/2,EXIT_BTN.y+8,1,C.cream);
-  drawText('SCORE',56,4,1,C.grey); drawText(''+G1.score,56,13,2,C.white);
-  drawText('GOALS',W/2-16,4,1,C.grey); drawText(G1.goals+'/10',W/2-16,13,2,C.green);
-  drawText('SHOTS',W-58,4,1,C.grey); drawText(''+G1.shots,W-30,13,2,C.yellow);
+  drawText('EXIT',EXIT_BTN.x+(EXIT_BTN.w-textW('EXIT',1.2))/2,EXIT_BTN.y+7,1.2,C.cream);
+  drawText('SCORE',56,3,1.2,C.grey); drawText(''+G1.score,56,13,2,C.white);
+  drawText('GOALS',W/2-18,3,1.2,C.grey); drawText(G1.goals+'/10',W/2-18,13,2,C.green);
+  drawText('SHOTS',W-62,3,1.2,C.grey); drawText(''+G1.shots,W-34,13,2,C.yellow);
   // shot clock — depleting bar under the HUD, flashes red in the final 1.25s
   if(!G1.tut && (G1.phase==='aim'||G1.phase==='fly')){
     const frac=clamp(G1.clock/SHOT_CLOCK,0,1), cw=W-12;
@@ -665,9 +665,9 @@ function g1Draw(){
     const col=frac>0.5?C.green:frac>0.25?C.yellow:C.red;
     ctx.fillStyle=(frac<=0.25&&frame%8<4)?C.white:col; ctx.fillRect(6,27,cw*frac,4);
   }
-  if(G1.streak>=2) textCS('COMBO x'+G1.streak,36,1,(frame%8<4?C.gold:C.yellow),C.black);
+  if(G1.streak>=2) textCS('COMBO x'+G1.streak,36,1.3,(frame%8<4?C.gold:C.yellow),C.black);
   if(G1.msgT>0) textCS(G1.msg,250+Math.sin(frame*0.3)*2,3,G1.msgC,C.black);
-  if(G1.phase==='foul'){ textCS('FOUL!',150,5,(frame%8<4?C.red:C.yellow),C.black); textCS('CREASE VIOLATION',188,1,C.cream,C.black); textCS('TURNOVER - SHOT LOST',206,1,C.grey,C.black); }
+  if(G1.phase==='foul'){ textCS('FOUL!',150,5,(frame%8<4?C.red:C.yellow),C.black); textCS('CREASE VIOLATION',188,1.3,C.cream,C.black); textCS('TURNOVER - SHOT LOST',208,1.2,C.grey,C.black); }
   if(G1.tut) tutorial('GOALIE',['MOVE - LEFT STICK','AIM ANYWHERE - RIGHT STICK','LIFT THUMB = SHOOT','AIM THE TURF TO BOUNCE IT IN','DONT CROSS THE CREASE!']);
 }
 
@@ -722,8 +722,8 @@ function drawToasts(){
   if(toastT>150){ toasts.shift(); toastT=0; }
 }
 const SHARE_URL='https://michaeltholland.github.io/agent-mode/';
-const APP_VERSION='1.2';     // bump every deploy; the update check compares against the live file
-const WHATS_NEW='FREE AIM, BOUNCE SHOTS + CLAN RANKS';   // one-line highlight shown on the update prompt
+const APP_VERSION='1.3';     // bump every deploy; the update check compares against the live file
+const WHATS_NEW='BIGGER TEXT + LOCKER FIXES';   // one-line highlight shown on the update prompt
 let updateReady=false, updateNote='';
 function updateCheck(){
   if(typeof fetch!=='function') return;
@@ -830,12 +830,12 @@ function drawLeaderboard(){
   textCS('LEADERBOARD',46,3,C.gold,C.black);
   const total=LBTOTAL||LB.length;
   const sub=lbStatus==='loading'?'LOADING WORLD RANKS...':lbStatus==='global'?('TOP 30% OF '+total+' PLAYERS'):lbStatus==='offline'?'OFFLINE - LAST SEEN RANKS':('TOP '+LB.length);
-  textC(sub,76,1.2,lbStatus==='global'?C.green:C.grey);
+  textC(sub,76,1.4,lbStatus==='global'?C.green:C.grey);
   // your rank + title banner
   let myRank=-1; if(lb.mine){ for(let i=0;i<LB.length;i++){ if(LB[i].n===lb.mine.n&&LB[i].s===lb.mine.s){ myRank=i+1; break; } } }
-  if(myRank>0){ ctx.fillStyle='rgba(255,210,63,0.12)'; ctx.fillRect(20,92,W-40,20);
+  if(myRank>0){ ctx.fillStyle='rgba(255,210,63,0.12)'; ctx.fillRect(20,92,W-40,22);
     const tt='YOU: '+rankTitle(myRank)+'  #'+myRank;
-    drawText(tt,(W-textW(tt,1.2))/2,96,1.2,tierColor(myRank)); }
+    drawText(tt,(W-textW(tt,1.4))/2,95,1.4,tierColor(myRank)); }
   if(LB.length===0){ if(lbStatus==='loading'){ textC('LOADING...',160,1.4,C.cream); } else { textC('NO SCORES YET -',156,1.3,C.cream); textC('GO BURY SOME CORNERS!',178,1.3,C.cream); } }
   else { const shown=lbShownCount(), start=lb.page*LB_PER, end=Math.min(shown,start+LB_PER);
     let y=120; for(let i=start;i<end;i++){ const e=LB[i], rank=i+1, hl=(lb.mine&&e.n===lb.mine.n&&e.s===lb.mine.s);
@@ -998,24 +998,24 @@ function lockerUpdate(){ let p; while((p=consumeTap())){
 }}
 function drawTab(r,label,on){ ctx.fillStyle=on?C.panelHi:C.panel; ctx.fillRect(r.x,r.y,r.w,r.h);
   ctx.fillStyle=on?C.yellow:C.dgrey; ctx.fillRect(r.x,r.y,r.w,3);
-  drawText(label,r.x+(r.w-textW(label,1))/2,r.y+(r.h-5)/2,1,on?C.white:C.cream); }
+  drawText(label,r.x+(r.w-textW(label,1.2))/2,r.y+(r.h-6)/2,1.2,on?C.white:C.cream); }
 function drawCard(y0,title,sub,lv,effect,buyR){
   ctx.fillStyle=C.panel; ctx.fillRect(20,y0,W-40,104); ctx.fillStyle=C.dgrey; ctx.fillRect(20,y0,W-40,3);
-  drawText(title,30,y0+9,2,C.yellow); drawText('LV '+lv+'/'+UP_MAX,W-150,y0+11,1,C.cream);
-  drawText(sub,30,y0+32,1,C.grey);
+  drawText(title,30,y0+9,2,C.yellow); drawText('LV '+lv+'/'+UP_MAX,W-148,y0+11,1.1,C.cream);
+  drawText(sub,30,y0+32,1.2,C.grey);
   const bw=W-118; ctx.fillStyle='#243049'; ctx.fillRect(30,y0+46,bw,8);
   ctx.fillStyle=C.green; ctx.fillRect(30,y0+46,bw*(lv/UP_MAX),8);
-  drawText('NOW '+effect,30,y0+62,1,C.cream);
+  drawText('NOW '+effect,30,y0+62,1.2,C.cream);
   const maxed=lv>=UP_MAX;
   drawBtn(buyR,false); ctx.fillStyle=maxed?C.gold:C.green; ctx.fillRect(buyR.x,buyR.y,buyR.w,3);
-  if(maxed){ drawText('MAXED',buyR.x+(buyR.w-textW('MAXED',1))/2,buyR.y+7,1,C.gold); }
-  else { drawText('UPGRADE',buyR.x+(buyR.w-textW('UPGRADE',1))/2,buyR.y+5,1,C.white);
-         const ct=upCost(lv)+' C'; drawText(ct,buyR.x+(buyR.w-textW(ct,1))/2,buyR.y+20,1,C.gold); }
+  if(maxed){ drawText('MAXED',buyR.x+(buyR.w-textW('MAXED',1.1))/2,buyR.y+7,1.1,C.gold); }
+  else { drawText('UPGRADE',buyR.x+(buyR.w-textW('UPGRADE',1.1))/2,buyR.y+5,1.1,C.white);
+         const ct=upCost(lv)+' C'; drawText(ct,buyR.x+(buyR.w-textW(ct,1.1))/2,buyR.y+20,1.1,C.gold); }
 }
 function drawLocker(){
   vgrad(0,0,W,H,'#10204a','#040814');
   drawTab(LK_TAB1,'GEAR',lockerTab===0); drawTab(LK_TAB2,'UPGRADES',lockerTab===1);
-  textC('LEVEL '+curLevel()+'     COINS '+PROFILE.coins,90,1,C.gold);
+  textC('LEVEL '+curLevel()+'     COINS '+PROFILE.coins,H-66,1.5,C.gold);
   if(lockerTab===0){
     ctx.save(); ctx.translate(W/2,176); ctx.scale(2,2); drawShooter(0,0,false); ctx.restore();
     drawBtn(LK_PARTL,false); glyph('LT',LK_PARTL.x+9,LK_PARTL.y+9,3,C.cream);
@@ -1029,7 +1029,7 @@ function drawLocker(){
         ctx.fillStyle=C.gold; ctx.fillRect(c.box.x,c.box.y,c.box.w,3); ctx.fillRect(c.box.x,c.box.y+c.box.h-3,c.box.w,3);
         drawText(iniChar(i),c.box.x+c.box.w/2-textW(iniChar(i),4)/2,c.box.y+8,4,C.white);
         drawBtn(c.dn,false); glyph('DN',c.dn.x+c.dn.w/2-7,c.dn.y+8,3,C.cream); }
-      textC('USED ON THE LEADERBOARD',H-92,1,C.grey);
+      textC('USED ON THE LEADERBOARD',H-94,1.2,C.grey);
     } else if(part.key==='num'){
       drawBtn(LK_MINUS,false); drawText('-',LK_MINUS.x+(LK_MINUS.w-textW('-',3))/2,LK_MINUS.y+14,3,C.white);
       const ns=''+PROFILE.num; drawText(ns,W/2-textW(ns,5)/2,262,5,C.yellow);
