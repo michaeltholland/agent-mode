@@ -10,30 +10,33 @@
 <style>
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; -webkit-user-select:none; user-select:none; }
   html,body { margin:0; padding:0; height:100%; background:#05070f; overflow:hidden; font-family:'Courier New',monospace; touch-action:none; }
-  #wrap { width:100%; height:100%; display:flex; align-items:center; justify-content:center; }
-  canvas { background:#000; box-shadow:0 0 0 3px #141a30, 0 0 50px #000; cursor:pointer; }
+  #wrap { position:relative; width:100%; height:100%; }
+  canvas { position:absolute; }
+  #c { image-rendering:pixelated; image-rendering:crisp-edges; background:#000; box-shadow:0 0 0 3px #141a30, 0 0 50px #000; }
+  #t { background:transparent; pointer-events:auto; cursor:pointer; }
 </style>
 </head>
 <body>
-<div id="wrap"><canvas id="c" width="300" height="540"></canvas></div>
+<div id="wrap"><canvas id="c" width="300" height="540"></canvas><canvas id="t"></canvas></div>
 <script>
 (function(){
 "use strict";
 
 // ====================== SETUP ======================
 const W=300, H=540;
-const canvas=document.getElementById('c');
+const canvas=document.getElementById('c');     // sprite layer - low-res, pixelated (hard retro edges)
+const tcanvas=document.getElementById('t');     // text layer - hi-res, smooth (readable)
 const ctx=canvas.getContext('2d');
+const tctx=tcanvas.getContext('2d');
 ctx.imageSmoothingEnabled=false;
 function resize(){
   const aw=window.innerWidth, ah=window.innerHeight;
   const s=Math.min(aw/W, ah/H);
-  canvas.style.width=Math.round(W*s)+'px';
-  canvas.style.height=Math.round(H*s)+'px';
-  const pxs=Math.min(3, Math.max(2, Math.ceil((window.devicePixelRatio||1)*s)));   // supersample for crisp text
-  canvas.width=W*pxs; canvas.height=H*pxs;
-  ctx.setTransform(pxs,0,0,pxs,0,0);
-  ctx.imageSmoothingEnabled=false;
+  const cw=Math.round(W*s), ch=Math.round(H*s), left=Math.round((aw-cw)/2), top=Math.round((ah-ch)/2);
+  for(const cv of [canvas,tcanvas]){ cv.style.left=left+'px'; cv.style.top=top+'px'; cv.style.width=cw+'px'; cv.style.height=ch+'px'; }
+  const pxs=Math.min(3, Math.max(2, Math.ceil((window.devicePixelRatio||1)*s)));  // text rendered at device res = crisp
+  tcanvas.width=W*pxs; tcanvas.height=H*pxs;
+  tctx.setTransform(pxs,0,0,pxs,0,0);
 }
 window.addEventListener('resize',resize);
 window.addEventListener('orientationchange',()=>setTimeout(resize,100));
@@ -82,10 +85,10 @@ const FONT={
  'UP':["00100","01110","10101","00100","00100"],'DN':["00100","00100","10101","01110","00100"],
  ' ':["00000","00000","00000","00000","00000"]
 };
-// crisp, readable real font (the sprites stay pixel-art; only text is "normal")
+// crisp, readable real font on the hi-res text layer (sprites stay pixel-art on the layer below)
 function lxFont(s){ return 'bold '+Math.round(7.5*(s||1))+'px "Trebuchet MS",system-ui,-apple-system,"Segoe UI",Arial,sans-serif'; }
-function drawText(str,x,y,s,col){ s=s||1; ctx.font=lxFont(s); ctx.textBaseline='top'; ctx.textAlign='left'; ctx.fillStyle=col||C.white; ctx.fillText(''+str,x,y); return x+ctx.measureText(''+str).width; }
-function textW(str,s){ ctx.font=lxFont(s||1); return ctx.measureText(''+str).width; }
+function drawText(str,x,y,s,col){ s=s||1; tctx.font=lxFont(s); tctx.textBaseline='top'; tctx.textAlign='left'; tctx.fillStyle=col||C.white; tctx.fillText(''+str,x,y); return x+tctx.measureText(''+str).width; }
+function textW(str,s){ tctx.font=lxFont(s||1); return tctx.measureText(''+str).width; }
 function textC(str,y,s,col){ drawText(str,(W-textW(str,s))/2,y,s,col); }
 function textS(str,x,y,s,col,sh){ const o=Math.max(1,Math.round((s||1))); drawText(str,x+o,y+o,s,sh||C.black); drawText(str,x,y,s,col); }
 function textCS(str,y,s,col,sh){ textS(str,(W-textW(str,s))/2,y,s,col,sh); }
@@ -106,7 +109,7 @@ let rReleased=false;           // edge flag: right stick was just let go
 function inJoy(j,x,y){ return Math.hypot(x-j.cx,y-j.cy)<=j.r+28; }
 function setJoy(j,s,x,y){ s.dx=clamp((x-j.cx)/j.r,-1,1); s.dy=clamp((y-j.cy)/j.r,-1,1); }
 function resetSticks(){ sL.id=null; sL.dx=0; sL.dy=0; sR.id=null; sR.dx=0; sR.dy=0; rReleased=false; }
-function pt(clientX,clientY){ const r=canvas.getBoundingClientRect(); return {x:(clientX-r.left)/(r.width/W), y:(clientY-r.top)/(r.height/H)}; }
+function pt(clientX,clientY){ const r=tcanvas.getBoundingClientRect(); return {x:(clientX-r.left)/(r.width/W), y:(clientY-r.top)/(r.height/H)}; }
 function down(id,x,y){
   unlockAudio(); pointers[id]={x,y}; pressQueue.push({x,y});
   shareArm = (shareBtn && hit({x:x,y:y},shareBtn)) ? Object.assign({},shareBtn) : null;   // only share if the tap STARTED on the share button
@@ -123,15 +126,15 @@ function up(id){
   if(id===sL.id){ sL.id=null; sL.dx=0; sL.dy=0; }
   if(id===sR.id){ sR.id=null; rReleased=true; }   // keep dx,dy so the game can shoot where it pointed
 }
-canvas.addEventListener('mousedown',e=>{ e.preventDefault(); const p=pt(e.clientX,e.clientY); down('m',p.x,p.y); });
+tcanvas.addEventListener('mousedown',e=>{ e.preventDefault(); const p=pt(e.clientX,e.clientY); down('m',p.x,p.y); });
 window.addEventListener('mousemove',e=>{ if(pointers['m']){ const p=pt(e.clientX,e.clientY); move('m',p.x,p.y); } });
 window.addEventListener('mouseup',e=>{ const p=pt(e.clientX,e.clientY); up('m'); tryShareAt(p); });
-canvas.addEventListener('touchstart',e=>{ e.preventDefault(); for(const t of e.changedTouches){ const p=pt(t.clientX,t.clientY); down(t.identifier,p.x,p.y); } },{passive:false});
-canvas.addEventListener('touchmove',e=>{ e.preventDefault(); for(const t of e.changedTouches){ const p=pt(t.clientX,t.clientY); move(t.identifier,p.x,p.y); } },{passive:false});
-canvas.addEventListener('touchend',e=>{ e.preventDefault(); for(const t of e.changedTouches){ up(t.identifier); tryShareAt(pt(t.clientX,t.clientY)); } },{passive:false});
-canvas.addEventListener('touchcancel',e=>{ for(const t of e.changedTouches) up(t.identifier); });
-canvas.addEventListener('dblclick',e=>e.preventDefault());
-canvas.addEventListener('gesturestart',e=>e.preventDefault());
+tcanvas.addEventListener('touchstart',e=>{ e.preventDefault(); for(const t of e.changedTouches){ const p=pt(t.clientX,t.clientY); down(t.identifier,p.x,p.y); } },{passive:false});
+tcanvas.addEventListener('touchmove',e=>{ e.preventDefault(); for(const t of e.changedTouches){ const p=pt(t.clientX,t.clientY); move(t.identifier,p.x,p.y); } },{passive:false});
+tcanvas.addEventListener('touchend',e=>{ e.preventDefault(); for(const t of e.changedTouches){ up(t.identifier); tryShareAt(pt(t.clientX,t.clientY)); } },{passive:false});
+tcanvas.addEventListener('touchcancel',e=>{ for(const t of e.changedTouches) up(t.identifier); });
+tcanvas.addEventListener('dblclick',e=>e.preventDefault());
+tcanvas.addEventListener('gesturestart',e=>e.preventDefault());
 window.addEventListener('keydown',e=>{
   if(e.code==='Space'||e.code==='Enter'){ e.preventDefault(); if(!spaceDown){ pressQueue.push({x:-1,y:-1}); spaceDown=true; } }
   if(e.code==='KeyA') keys.moveL=true; if(e.code==='KeyD') keys.moveR=true;
@@ -725,8 +728,8 @@ function drawToasts(){
   if(toastT>150){ toasts.shift(); toastT=0; }
 }
 const SHARE_URL='https://michaeltholland.github.io/agent-mode/';
-const APP_VERSION='1.6';     // bump every deploy; the update check compares against the live file
-const WHATS_NEW='CLEAN, READABLE TEXT';   // one-line highlight shown on the update prompt
+const APP_VERSION='1.7';     // bump every deploy; the update check compares against the live file
+const WHATS_NEW='RETRO SPRITES + CRISP TEXT';   // one-line highlight shown on the update prompt
 let updateReady=false, updateNote='';
 function updateCheck(){
   if(typeof fetch!=='function') return;
@@ -1112,7 +1115,7 @@ function drawLocker(){
 
 // ====================== MAIN LOOP (crash-safe) ======================
 function frameStep(){
-  ctx.fillStyle='#000'; ctx.fillRect(0,0,W,H); shareBtn=null;
+  ctx.fillStyle='#000'; ctx.fillRect(0,0,W,H); tctx.clearRect(0,0,W,H); shareBtn=null;
   if(state===S.WELCOME){ welcomeUpdate(); drawWelcome(); }
   else if(state===S.TRIVIA){ triviaUpdate(); drawTrivia(); }
   else if(state===S.MENU){ menuUpdate(); drawMenu(); }
