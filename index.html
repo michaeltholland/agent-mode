@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>LAX TAPPER</title>
+<title>Lacrosse Shootout</title>
 <style>
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; -webkit-user-select:none; user-select:none; }
   html,body { margin:0; padding:0; height:100%; background:#05070f; overflow:hidden; font-family:'Courier New',monospace; touch-action:none; }
@@ -103,6 +103,7 @@ function resetSticks(){ sL.id=null; sL.dx=0; sL.dy=0; sR.id=null; sR.dx=0; sR.dy
 function pt(clientX,clientY){ const r=canvas.getBoundingClientRect(); return {x:(clientX-r.left)/(r.width/W), y:(clientY-r.top)/(r.height/H)}; }
 function down(id,x,y){
   unlockAudio(); pointers[id]={x,y}; pressQueue.push({x,y});
+  shareArm = (shareBtn && hit({x:x,y:y},shareBtn)) ? Object.assign({},shareBtn) : null;   // only share if the tap STARTED on the share button
   if(sL.id===null && inJoy(LJOY,x,y)){ sL.id=id; setJoy(LJOY,sL,x,y); }
   else if(sR.id===null && inJoy(RJOY,x,y)){ sR.id=id; setJoy(RJOY,sR,x,y); }
 }
@@ -405,9 +406,9 @@ function drawMenu(){
   for(let i=0;i<6;i++){ ctx.fillStyle=i%2?C.grass2:C.grass3; ctx.fillRect(0,H*0.5+i*22,W,11); }
   ctx.fillStyle=C.panel; ctx.fillRect(20,46,W-40,120);
   ctx.fillStyle=C.gold; ctx.fillRect(20,46,W-40,6); ctx.fillRect(20,160,W-40,6);
-  textCS('LACROSSE',70,5,C.yellow,C.orangeDk);
-  textCS('TAPPER',110,7,C.orange,C.black);
-  textCS('- GOALIE SHOOTOUT -',146,1,C.cream,C.black);
+  textCS('LACROSSE',72,4,C.yellow,C.orangeDk);
+  textCS('SHOOTOUT',106,5,C.orange,C.black);
+  textCS('- BEAT THE KEEPER -',146,1,C.cream,C.black);
   const by=196+Math.sin(frame*0.12)*7;
   ctx.strokeStyle=C.shaft; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(W/2+18,by+14); ctx.lineTo(W/2+4,by); ctx.stroke();
   ctx.fillStyle=C.orange; ctx.fillRect(W/2-2,by-8,10,10); ctx.fillStyle=C.crosse; ctx.fillRect(W/2-1,by-7,8,8);
@@ -708,16 +709,17 @@ function drawToasts(){
 const SHARE_URL='https://michaeltholland.github.io/agent-mode/';
 let lastShareT=0;            // dedupe: gesture handler + game-loop may both call
 let shareBtn=null;           // active share button rect (set each frame by the draw)
+let shareArm=null;           // share button the current tap STARTED on (prevents accidental fires)
 function shareGame(score){
   const now=Date.now(); if(now-lastShareT<1200) return; lastShareT=now;
   const nav=(typeof navigator!=='undefined')?navigator:null;
-  const msg=score?('I scored '+score+' on LAX TAPPER! Can you beat me?'):'Score on the goalie - play LAX TAPPER!';
-  if(nav&&nav.share){ try{ const r=nav.share({title:'LAX TAPPER',text:msg,url:SHARE_URL}); if(r&&r.catch) r.catch(()=>{}); }catch(e){} return; }
+  const msg=score?('I scored '+score+' on LACROSSE SHOOTOUT! Can you beat me?'):'Score on the goalie - play LACROSSE SHOOTOUT!';
+  if(nav&&nav.share){ try{ const r=nav.share({title:'LACROSSE SHOOTOUT',text:msg,url:SHARE_URL}); if(r&&r.catch) r.catch(()=>{}); }catch(e){} return; }
   if(nav&&nav.clipboard&&nav.clipboard.writeText){ nav.clipboard.writeText(msg+' '+SHARE_URL).then(()=>pushToast('LINK COPIED!','SHARE')).catch(()=>pushToast('LINK COPIED!','SHARE')); return; }
   pushToast('LINK COPIED!','SHARE');
 }
 // fire share straight from the touch/click gesture so iOS accepts the first tap
-function tryShareAt(p){ if(shareBtn && hit(p,shareBtn)) shareGame(shareBtn.score); }
+function tryShareAt(p){ if(shareArm && hit(p,shareArm)) shareGame(shareArm.score); shareArm=null; }
 function drawMedal(cx,cy,m,r){
   r=r||22;
   ctx.fillStyle='#7a3b27'; ctx.fillRect(cx-3,cy-r-14,6,12); // ribbon
