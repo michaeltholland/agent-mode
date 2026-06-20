@@ -377,7 +377,7 @@ function drawJoy(j,s,label,active,accent){
 }
 
 // ====================== STATE ======================
-const S={MENU:0,HELP:1,G1:2,OVER:3,SURVEY:4,ENTRY:5,LB:6,BADGES:7,LOCKER:8,WELCOME:9};
+const S={MENU:0,HELP:1,G1:2,OVER:3,SURVEY:4,ENTRY:5,LB:6,BADGES:7,LOCKER:8,WELCOME:9,TRIVIA:10};
 let welcomed=false; try{ welcomed=!!localStorage.getItem('lax4_welcome'); }catch(e){}
 let state=welcomed?S.MENU:S.WELCOME, frame=0, menuSel=0;
 // where the FEEDBACK / survey emails go (a throwaway address, confirmed by owner)
@@ -386,7 +386,7 @@ const FEEDBACK_EMAIL='laxtapper.feedback@gmail.com';
 // ====================== MENU ======================
 const HWg=(W-48-12)/2;   // grid half-width
 const MENU_BTNS=[
-  {label:'PLAY GOALIE', r:{x:24,y:238,w:W-48,h:54},      go:()=>{ g1Init(); state=S.G1; }},
+  {label:'PLAY GOALIE', r:{x:24,y:238,w:W-48,h:54},      go:()=>{ triviaStart(); }},
   {label:'LOCKER ROOM', r:{x:24,y:300,w:HWg,h:46},       go:()=>{ lockerOpen(); }},
   {label:'RANKS',       r:{x:36+HWg,y:300,w:HWg,h:46},   go:()=>{ lbOpen('MENU'); }},
   {label:'BADGES',      r:{x:24,y:352,w:HWg,h:46},       go:()=>{ state=S.BADGES; }},
@@ -722,8 +722,8 @@ function drawToasts(){
   if(toastT>150){ toasts.shift(); toastT=0; }
 }
 const SHARE_URL='https://michaeltholland.github.io/agent-mode/';
-const APP_VERSION='1.3';     // bump every deploy; the update check compares against the live file
-const WHATS_NEW='BIGGER TEXT + LOCKER FIXES';   // one-line highlight shown on the update prompt
+const APP_VERSION='1.4';     // bump every deploy; the update check compares against the live file
+const WHATS_NEW='LACROSSE TRIVIA - ANSWER FOR COINS';   // one-line highlight shown on the update prompt
 let updateReady=false, updateNote='';
 function updateCheck(){
   if(typeof fetch!=='function') return;
@@ -760,7 +760,7 @@ const OV_PLAY={x:24,y:H-168,w:HW,h:48}, OV_MENU={x:36+HW,y:H-168,w:HW,h:48};
 const OV_LB={x:24,y:H-110,w:HW,h:42}, OV_FB={x:36+HW,y:H-110,w:HW,h:42};
 const OV_SHARE={x:24,y:H-56,w:W-48,h:40};
 function overUpdate(){ over.t++; updateParts(); let p; while((p=consumeTap())){ if(over.t<=20) break;
-  if(hit(p,OV_PLAY)){ g1Init(); state=S.G1; return; }
+  if(hit(p,OV_PLAY)){ triviaStart(); return; }
   if(hit(p,OV_SHARE)){ shareGame(over.score); SFX.ui(); return; }
   if(hit(p,OV_LB)){ lbOpen('GAME'); return; }
   if(hit(p,OV_FB)){ surveyOpen('OVER'); return; }
@@ -820,7 +820,7 @@ const LB_PER=9;
 const LB_PREV={x:24,y:326,w:62,h:30}, LB_NEXT={x:W-86,y:326,w:62,h:30};
 function lbPages(){ return Math.max(1, Math.ceil(lbShownCount()/LB_PER)); }
 function lbUpdate(){ if(lb.page>=lbPages()) lb.page=lbPages()-1; let p; while((p=consumeTap())){
-  if(hit(p,OV_PLAY)){ g1Init(); state=S.G1; return; }
+  if(hit(p,OV_PLAY)){ triviaStart(); return; }
   if(hit(p,OV_SHARE)){ shareGame(HI.g1); SFX.ui(); return; }
   if(hit(p,LB_PREV)&&lb.page>0){ lb.page--; SFX.ui(); return; }
   if(hit(p,LB_NEXT)&&lb.page<lbPages()-1){ lb.page++; SFX.ui(); return; }
@@ -922,6 +922,60 @@ function drawWelcome(){
   let y=H/2-98; for(const l of lines){ if(l) textCS(l,y,1.5,C.cream,C.black); y+=16; }
   drawBtn(WEL_BTN,false); ctx.fillStyle=C.green; ctx.fillRect(WEL_BTN.x,WEL_BTN.y,WEL_BTN.w,3);
   drawText('PLAY BALL',WEL_BTN.x+(WEL_BTN.w-textW('PLAY BALL',2))/2,WEL_BTN.y+15,2,C.white);
+}
+
+// ====================== LACROSSE TRIVIA (earn coins) ======================
+const TRIVIA_REWARD=15;
+const TRIVIA_Q=[
+  {q:'WHO ORIGINATED LACROSSE?',opts:['HAUDENOSAUNEE (SIX NATIONS)','ANCIENT ROMANS','THE VIKINGS'],ans:0,fact:'THE HAUDENOSAUNEE - IT IS THE CREATORS GAME.'},
+  {q:'LACROSSE IS NICKNAMED THE...',opts:['CREATORS GAME','KINGS GAME','WINTER GAME'],ans:0,fact:'THE CREATORS GAME - PLAYED FOR CEREMONY AND HEALING.'},
+  {q:'THE NO-GO ZONE AT THE GOAL IS THE...',opts:['CREASE','THE PAINT','THE BOX'],ans:0,fact:'THE CREASE - OFFENSE CANNOT STEP INSIDE IT.'},
+  {q:'A SHOT BETWEEN THE GOALIES LEGS IS THE...',opts:['FIVE HOLE','THE GUTTER','THE SLOT'],ans:0,fact:'THE FIVE HOLE - SAME TERM AS HOCKEY.'},
+  {q:'MENS FIELD LACROSSE - PLAYERS PER SIDE?',opts:['10','6','8'],ans:0,fact:'10 PLAYERS - INCLUDING THE GOALIE.'},
+  {q:'BOX LACROSSE - PLAYERS PER SIDE?',opts:['6','10','5'],ans:0,fact:'6 - FIVE RUNNERS AND A GOALIE.'},
+  {q:'THREE GOALS IN ONE GAME IS A...',opts:['HAT TRICK','A TURKEY','A TRIPLE'],ans:0,fact:'A HAT TRICK - THREE GOALS BY ONE PLAYER.'},
+  {q:'LACROSSE RETURNS TO THE OLYMPICS IN...',opts:['2028','2032','2024'],ans:0,fact:'LA 2028 - PLAYED AS LACROSSE SIXES.'},
+  {q:'THE LACROSSE STICK IS ALSO CALLED A...',opts:['CROSSE','A BAT','A PADDLE'],ans:0,fact:'A CROSSE - FROM THE FRENCH WORD.'},
+  {q:'A GREAT SHOOTER SHOOTS WITH...',opts:['PURPOSE','PURE POWER','EYES CLOSED'],ans:0,fact:'PURPOSE - PICK THE OPEN SPOT, DONT JUST RIP IT.'},
+  {q:'GREAT SHOOTERS CREATE BETTER...',opts:['ANGLES','EXCUSES','ONLY SPEED'],ans:0,fact:'ANGLES - BODY POSITION OPENS UP THE NET.'},
+  {q:'GREAT SHOOTERS READ THE...',opts:['GOALIE','CROWD','SCOREBOARD'],ans:0,fact:'THE GOALIE - WATCH HIS HANDS AND FEET FIRST.'},
+  {q:'LACROSSE IS THE FASTEST SPORT ON TWO...',opts:['FEET','WHEELS','SKATES'],ans:0,fact:'THE FASTEST SPORT ON TWO FEET.'},
+  {q:'A BOUNCE SHOT SKIPS OFF THE...',opts:['TURF','CROSSBAR','GOALIE'],ans:0,fact:'THE TURF - A SKIP SHOT IS HARD TO READ.'},
+  {q:'GREAT SHOOTERS SHOOT AT THE RIGHT...',opts:['MOMENT','PRICE','ANGLE ONLY'],ans:0,fact:'THE RIGHT MOMENT - WHEN THE LANE OPENS UP.'}
+];
+let trivia={q:null,order:[0,1,2],correct:0,picked:-1,answered:false};
+function triviaStart(){
+  const q=TRIVIA_Q[(Math.random()*TRIVIA_Q.length)|0];
+  const order=q.opts.map((_,i)=>i);
+  for(let i=order.length-1;i>0;i--){ const j=(Math.random()*(i+1))|0; const t=order[i]; order[i]=order[j]; order[j]=t; }
+  trivia={q:q, order:order, correct:order.indexOf(q.ans), picked:-1, answered:false};
+  state=S.TRIVIA;
+}
+function wrapText(str,maxC){ const w=(''+str).split(' '), out=[]; let cur='';
+  for(const word of w){ if((cur+' '+word).trim().length<=maxC) cur=(cur?cur+' ':'')+word; else { if(cur)out.push(cur); cur=word; } }
+  if(cur) out.push(cur); return out; }
+function triOpt(i){ return {x:24,y:204+i*52,w:W-48,h:46}; }
+function triviaUpdate(){ let p; while((p=consumeTap())){
+  if(!trivia.answered){
+    for(let i=0;i<trivia.order.length;i++){ if(hit(p,triOpt(i))){ trivia.picked=i; trivia.answered=true;
+      if(i===trivia.correct){ PROFILE.coins+=TRIVIA_REWARD; profSave(); SFX.big(); } else SFX.save(); return; } }
+  } else { g1Init(); state=S.G1; return; }   // any tap -> play
+}}
+function drawTrivia(){
+  vgrad(0,0,W,H,'#10204a','#040814');
+  textCS('LACROSSE TRIVIA',44,3,C.gold,C.black);
+  textC(trivia.answered?'':'ANSWER RIGHT = +'+TRIVIA_REWARD+' COINS',74,1.3,C.green);
+  const ql=wrapText(trivia.q.q,26); let qy=104; for(const l of ql){ textCS(l,qy,1.5,C.cream,C.black); qy+=22; }
+  for(let i=0;i<trivia.order.length;i++){ const r=triOpt(i), label=trivia.q.opts[trivia.order[i]];
+    let col=C.panel, bc=C.dgrey, tc=C.cream;
+    if(trivia.answered){ if(i===trivia.correct){ col='#16633a'; bc=C.green; } else if(i===trivia.picked){ col='#5e1b25'; bc=C.red; tc=C.cream; } else { tc=C.grey; } }
+    ctx.fillStyle=col; ctx.fillRect(r.x,r.y,r.w,r.h); ctx.fillStyle=bc; ctx.fillRect(r.x,r.y,r.w,3); ctx.fillRect(r.x,r.y+r.h-3,r.w,3);
+    drawText(label,r.x+(r.w-textW(label,1.3))/2,r.y+(r.h-7)/2,1.3,tc); }
+  if(trivia.answered){ const right=trivia.picked===trivia.correct;
+    textCS(right?('CORRECT!  +'+TRIVIA_REWARD+' COINS'):'BETTER LUCK NEXT TIME',372,1.6,right?C.green:C.red,C.black);
+    const fl=wrapText(trivia.q.fact,32); let fy=398; for(const l of fl){ textC(l,fy,1.2,C.cream); fy+=18; }
+    if(frame%24<16) textCS('TAP TO PLAY BALL',H-24,1.5,C.yellow,C.black);
+  } else textC('TAP YOUR ANSWER',H-24,1.3,C.grey);
 }
 
 // ====================== BADGES SCREEN ======================
@@ -1054,6 +1108,7 @@ function drawLocker(){
 function frameStep(){
   ctx.fillStyle='#000'; ctx.fillRect(0,0,W,H); shareBtn=null;
   if(state===S.WELCOME){ welcomeUpdate(); drawWelcome(); }
+  else if(state===S.TRIVIA){ triviaUpdate(); drawTrivia(); }
   else if(state===S.MENU){ menuUpdate(); drawMenu(); }
   else if(state===S.HELP){ helpUpdate(); drawHelp(); }
   else if(state===S.LOCKER){ lockerUpdate(); drawLocker(); }
