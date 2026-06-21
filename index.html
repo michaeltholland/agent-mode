@@ -229,11 +229,11 @@ lbFetch();   // prime the world board on load
 let STATS={games:0,goals:0,bestCombo:0,fiveHoles:0,topCorners:0,perfects:0};
 try{ STATS=Object.assign(STATS, JSON.parse(localStorage.getItem('lax4_stats')||'{}')||{}); }catch(e){}
 function statsSave(){ try{ localStorage.setItem('lax4_stats',JSON.stringify(STATS)); }catch(e){} }
-function curLevel(){ return STATS.games+1; }                 // climbs every game, no cap
-function diffFactor(){ return clamp((curLevel()-1)/35,0,0.85); }  // difficulty ramps to ~LV36 then caps
+function curLevel(){ return (PROFILE&&PROFILE.level)||1; }    // earned by clearing the 5 targets
+function diffFactor(){ const off=[-0.3,0,0.35][(PROFILE&&PROFILE.diff!=null)?PROFILE.diff:1]||0; return clamp((curLevel()-1)/30,0,0.85)+off; }  // difficulty + ROOKIE/PRO/ELITE offset
 // ---- player profile: appearance, coins, upgrades ----
 const PALETTE=['#e23b3b','#ff8c1a','#ffd23f','#37c66b','#1f9be0','#7a5cff','#ff5ca8','#ffffff','#0e1322','#1f2633','#9aa3b2','#7a5a2b'];
-let PROFILE={num:15,jersey:'#e23b3b',numCol:'#ffffff',helmet:'#0e1322',pants:'#1f2633',shaft:'#7a5a2b',head:'#ff8c1a',coins:0,stickLv:0,trainLv:0,accLv:0,initials:''};
+let PROFILE={num:15,jersey:'#e23b3b',numCol:'#ffffff',helmet:'#0e1322',pants:'#1f2633',shaft:'#7a5a2b',head:'#ff8c1a',coins:0,stickLv:0,trainLv:0,accLv:0,initials:'',level:1,diff:1};
 try{ PROFILE=Object.assign(PROFILE, JSON.parse(localStorage.getItem('lax4_profile')||'{}')||{}); }catch(e){}
 function profSave(){ try{ localStorage.setItem('lax4_profile',JSON.stringify(PROFILE)); }catch(e){} }
 function shade(hex,p){ const n=parseInt((hex||'#000').slice(1),16); let r=(n>>16)&255,g=(n>>8)&255,b=n&255;
@@ -391,6 +391,8 @@ const FEEDBACK_EMAIL='laxtapper.feedback@gmail.com';
 
 // ====================== MENU ======================
 const HWg=(W-48-12)/2;   // grid half-width
+const DIFF_NAMES=['ROOKIE','PRO','ELITE'];
+const DIFF_BTN={x:70,y:18,w:W-140,h:24};
 const MENU_BTNS=[
   {label:'PLAY GOALIE', r:{x:24,y:238,w:W-48,h:54},      go:()=>{ triviaStart(); }},
   {label:'LOCKER ROOM', r:{x:24,y:300,w:HWg,h:46},       go:()=>{ lockerOpen(); }},
@@ -404,6 +406,7 @@ const UPDATE_BTN={x:40,y:H-44,w:W-80,h:22};
 function menuUpdate(){
   let p; while((p=consumeTap())){
     if(updateReady && p.x>=0 && hit(p,UPDATE_BTN)){ doUpdate(); return; }
+    if(hit(p,DIFF_BTN)){ PROFILE.diff=((PROFILE.diff||0)+1)%3; profSave(); SFX.ui(); return; }
     if(p.x<0){ MENU_BTNS[menuSel].go(); SFX.start(); return; }
     for(let i=0;i<MENU_BTNS.length;i++){ if(hit(p,MENU_BTNS[i].r)){ menuSel=i; SFX.start(); MENU_BTNS[i].go(); return; } }
   }
@@ -420,6 +423,9 @@ function drawMenu(){
   textCS('LACROSSE',72,4,C.yellow,C.orangeDk);
   textCS('SHOOTOUT',106,5,C.orange,C.black);
   textCS('- BEAT THE KEEPER -',146,1,C.cream,C.black);
+  { const b=DIFF_BTN, dn=DIFF_NAMES[PROFILE.diff||0], dc=[C.green,C.gold,C.red][PROFILE.diff||0];
+    ctx.fillStyle=C.panel; ctx.fillRect(b.x,b.y,b.w,b.h); ctx.fillStyle=dc; ctx.fillRect(b.x,b.y,b.w,2); ctx.fillRect(b.x,b.y+b.h-2,b.w,2);
+    const t='GOALIE: '+dn; drawText(t,b.x+(b.w-textW(t,1.2))/2,b.y+7,1.2,dc); }
   const by=196+Math.sin(frame*0.12)*7;
   ctx.strokeStyle=C.shaft; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(W/2+18,by+14); ctx.lineTo(W/2+4,by); ctx.stroke();
   ctx.fillStyle=C.orange; ctx.fillRect(W/2-2,by-8,10,10); ctx.fillStyle=C.crosse; ctx.fillRect(W/2-1,by-7,8,8);
@@ -446,7 +452,8 @@ let helpPage=0;
 const HELP=[
   {title:'HOW TO PLAY',lines:['SCORE ON A LIVE GOALIE.','HE BLOCKS THE NET WITH','HIS BODY (THE DARK ZONE).','','TWO THUMB-STICKS DOWN','IN THE BOTTOM CORNERS.','','TAP THROUGH FOR CONTROLS.']},
   {title:'CONTROLS',lines:['LEFT STICK = MOVE ANY WAY.','RIGHT STICK = AIM ANYWHERE','ON SCREEN. LIFT TO SHOOT.','','AIM AT THE TURF IN FRONT OF','GOAL TO BOUNCE IT IN - THE','KEEPER READS BOUNCES LATE.','','CROSS THE CREASE = FOUL.','','(DESKTOP: WASD, ARROWS, SPACE)']},
-  {title:'SCORING',lines:['RETICLE GREEN = OPEN,','RED = COVERED, GREY =','OFF THE NET (YOU CAN MISS).','','THE FIVE HOLE OPENS AND','SHUTS - SHOOT IT WHILE THE','GREEN RING IS SHOWING.','','TOP CORNER = 5   LOW = 4','FAR SIDE = 3   FIVE HOLE = 5','10 SHOTS - HE GETS TOUGHER.']}
+  {title:'SCORING',lines:['RETICLE GREEN = OPEN,','RED = COVERED, GREY =','OFF THE NET (YOU CAN MISS).','','THE FIVE HOLE OPENS AND','SHUTS - SHOOT IT WHILE THE','GREEN RING IS SHOWING.','','TOP CORNER = 5   LOW = 4','FAR SIDE = 3   FIVE HOLE = 5']},
+  {title:'TARGETS',lines:['A GOLD TARGET SHOWS WHERE','TO SHOOT - SCORE THERE TO','LIGHT IT UP, THEN IT MOVES.','','CLEAR ALL 5 ZONES (4 CORNERS','+ THE FIVE HOLE) TO LEVEL UP','AND EARN BONUS COINS.','','SAVES DONT COUNT - SO YOU','CANT CAMP ONE CORNER!','','SET GOALIE: ROOKIE/PRO/ELITE','ON THE MENU.']}
 ];
 function helpUpdate(){ let p; while((p=consumeTap())){ if(hit(p,{x:12,y:12,w:80,h:36})){ SFX.ui(); state=S.MENU; return; } helpPage++; SFX.ui(); if(helpPage>=HELP.length){ state=S.MENU; return; } } }
 function drawHelp(){
@@ -484,8 +491,20 @@ function g1Init(){
   G1.shooterX=W/2; G1.shooterY=330;
   G1.fhT=(Math.random()*(FH_OPEN+FH_SHUT))|0; G1.fhOpen=false;
   G1.streak=0; G1.maxCombo=0; G1.fiveHoles=0; G1.topCorners=0;
+  G1.taunt=''; G1.tauntT=0; G1.levelUp=0;
+  G1.tc={done:{TL:false,TR:false,BL:false,BR:false,FH:false}, active:null, laps:0};
+  tcPick();
   resetSticks();
 }
+const ZONES=['TL','TR','BL','BR','FH'];
+const TAUNTS=['DENIED!','NOT TODAY!','WALL!','TOO EASY!','NICE TRY!','NOPE!','GOT IT!','SIT DOWN!'];
+function tcPick(){ const inc=ZONES.filter(z=>!G1.tc.done[z]); G1.tc.active = inc.length? inc[(Math.random()*inc.length)|0] : null; }
+// which zone did a GOAL land in (4 quadrants + five hole)
+function g1Zone(tx,ty,gk){ if(g1FiveHoleHit(tx,ty,gk)) return 'FH';
+  return (ty<NET1.y+NET1.h*0.5?'T':'B')+(tx<AIM_CX?'L':'R'); }
+function tcZonePos(z,gk){ const nl=NET1.x,nr=NET1.x+NET1.w,nt=NET1.y,nb=NET1.y+NET1.h,w=NET1.w,h=NET1.h;
+  if(z==='FH'){ const fh=g1FiveHole(gk); return {x:fh.x,y:fh.y}; }
+  return {x: z.charAt(1)==='L'? nl+w*0.18 : nr-w*0.18, y: z.charAt(0)==='T'? nt+h*0.2 : nb-h*0.2}; }
 // the gap between the goalie's legs (five hole)
 function g1FiveHole(gk){ return {x:gk.x, y:(NET1.y+NET1.h)-gk.bh*0.20, r:13}; }
 // the actual open lane between the legs (when open) - the whole slot is shootable
@@ -517,7 +536,7 @@ function g1Fire(){
   G1.phase='fly'; G1.shots--; G1.gk.lunge=0; sR.dx=0; sR.dy=0; SFX.shoot();
 }
 function g1Update(){
-  if(G1.msgT>0) G1.msgT--; G1.shake*=0.82;
+  if(G1.msgT>0) G1.msgT--; if(G1.tauntT>0) G1.tauntT--; if(G1.levelUp>0) G1.levelUp--; G1.shake*=0.82;
   // difficulty ramps within a game (shot 1->10) AND climbs with your level (games played)
   const d=clamp(diffFactor() + (10-G1.shots)/9, 0, 1.6);
   G1.gk.reach=11+d*6;                                  // easier coverage (more open net)
@@ -580,6 +599,7 @@ function g1Update(){
         b.bounce=true;   // sails on past the net
       } else if(g1Covered(b.tx,b.ty,gk)){
         G1.msg='SAVE!'; G1.msgC=C.red; G1.msgT=64; G1.shake=6; SFX.save(); G1.streak=0;
+        G1.taunt=TAUNTS[(Math.random()*TAUNTS.length)|0]; G1.tauntT=60;   // keeper trash talk
         b.vx=-b.vx*0.3; b.vy=2.6; b.bounce=true;
       } else {
         const five=g1FiveHoleHit(b.tx,b.ty,gk);
@@ -597,6 +617,18 @@ function g1Update(){
         spawn(b.x,b.y,hot?30:(five?28:20),hot?[C.gold,C.red,C.yellow,C.white]:(five?[C.gold,C.yellow,C.white]:[C.green,C.yellow,C.white]));
         if(hot) beep(700+G1.streak*60,0.1,'square',0.05);
         (pts>=5||hot)?SFX.big():SFX.goal(); b.dead=true;
+        // ---- TARGET CHALLENGE: did this goal hit the lit target zone? ----
+        const z=g1Zone(b.tx,b.ty,gk);
+        if(G1.tc.active===z && !G1.tc.done[z]){
+          G1.tc.done[z]=true; PROFILE.coins+=5;
+          if(ZONES.every(k=>G1.tc.done[k])){            // all 5 cleared -> level up
+            G1.tc.laps++; PROFILE.level=(PROFILE.level||1)+1; PROFILE.coins+=25; profSave();
+            G1.levelUp=100; for(const k of ZONES) G1.tc.done[k]=false;
+            G1.msg='LEVEL '+PROFILE.level+'! +25'; G1.msgC=C.gold; G1.msgT=100; SFX.big();
+            spawn(W/2,170,55,[C.gold,C.green,C.yellow,C.white]);
+          } else { G1.msg='TARGET HIT! +5'; G1.msgC=C.gold; G1.msgT=76; }
+          tcPick();
+        }
       }
       G1.phase='result'; G1.resT=42;
     }
@@ -629,6 +661,14 @@ function g1Draw(){
   const bw2=clamp(gk.bw+gk.reach*2, 0, NET1.x+NET1.w-bx);
   ctx.fillStyle='rgba(8,8,12,0.42)'; ctx.fillRect(bx, NET1.y, bw2, NET1.h);
   drawGoalie(gk.x, NET1.y+NET1.h, gk.bw, gk.bh, gk.lunge, fh, G1.fhOpen);
+  // TARGET CHALLENGE marker - shoot here next
+  if(G1.tc.active && G1.phase!=='foul'){ const tp=tcZonePos(G1.tc.active,gk), pr=10+Math.sin(frame*0.18)*3, on=frame%10<6;
+    ctx.strokeStyle=on?C.gold:C.white; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.arc(tp.x,tp.y,pr,0,7); ctx.stroke();
+    ctx.beginPath(); ctx.arc(tp.x,tp.y,pr*0.4,0,7); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(tp.x-pr-4,tp.y); ctx.lineTo(tp.x-pr+2,tp.y); ctx.moveTo(tp.x+pr-2,tp.y); ctx.lineTo(tp.x+pr+4,tp.y);
+    ctx.moveTo(tp.x,tp.y-pr-4); ctx.lineTo(tp.x,tp.y-pr+2); ctx.moveTo(tp.x,tp.y+pr-2); ctx.lineTo(tp.x,tp.y+pr+4); ctx.stroke();
+  }
   if(G1.phase==='aim'){
     const bounceZone=G1.aimY>GOAL_LINE;
     const inNet=G1.aimX>NET1.x&&G1.aimX<NET1.x+NET1.w&&G1.aimY>NET1.y&&G1.aimY<NET1.y+NET1.h;
@@ -671,10 +711,13 @@ function g1Draw(){
     const col=frac>0.5?C.green:frac>0.25?C.yellow:C.red;
     ctx.fillStyle=(frac<=0.25&&frame%8<4)?C.white:col; ctx.fillRect(6,27,cw*frac,4);
   }
-  if(G1.streak>=2) textCS('COMBO x'+G1.streak,36,1.3,(frame%8<4?C.gold:C.yellow),C.black);
+  { let n=0; for(const k of ZONES) if(G1.tc.done[k]) n++; drawText('TARGETS '+n+'/5',6,31,1.1,C.gold); }
+  if(G1.tauntT>0){ const tx=clamp(G1.gk.x,40,W-40); drawText(G1.taunt, tx-textW(G1.taunt,1.3)/2, NET1.y-12, 1.3, frame%8<4?C.red:C.white); }
+  if(G1.streak>=2) textCS('COMBO x'+G1.streak,52,1.3,(frame%8<4?C.gold:C.yellow),C.black);
   if(G1.msgT>0) textCS(G1.msg,250+Math.sin(frame*0.3)*2,3,G1.msgC,C.black);
+  if(G1.levelUp>0) textCS('LEVEL '+(PROFILE.level)+'!',150,4,(frame%6<3?C.gold:C.yellow),C.black);
   if(G1.phase==='foul'){ textCS('FOUL!',150,5,(frame%8<4?C.red:C.yellow),C.black); textCS('CREASE VIOLATION',188,1.3,C.cream,C.black); textCS('TURNOVER - SHOT LOST',208,1.2,C.grey,C.black); }
-  if(G1.tut) tutorial('GOALIE',['MOVE - LEFT STICK','AIM ANYWHERE - RIGHT STICK','LIFT THUMB = SHOOT','AIM THE TURF TO BOUNCE IT IN','DONT CROSS THE CREASE!']);
+  if(G1.tut) tutorial('GOALIE',['MOVE = LEFT STICK','AIM = RIGHT STICK (LIFT TO SHOOT)','HIT THE GOLD TARGET - IT MOVES','CLEAR 4 CORNERS + 5 HOLE = LEVEL UP','AIM TURF TO BOUNCE - NO CREASE!']);
 }
 
 // ====================== TUTORIAL ======================
@@ -728,8 +771,8 @@ function drawToasts(){
   if(toastT>150){ toasts.shift(); toastT=0; }
 }
 const SHARE_URL='https://michaeltholland.github.io/agent-mode/';
-const APP_VERSION='1.7';     // bump every deploy; the update check compares against the live file
-const WHATS_NEW='RETRO SPRITES + CRISP TEXT';   // one-line highlight shown on the update prompt
+const APP_VERSION='1.8';     // bump every deploy; the update check compares against the live file
+const WHATS_NEW='TARGET CHALLENGE + DIFFICULTY';   // one-line highlight shown on the update prompt
 let updateReady=false, updateNote='';
 function updateCheck(){
   if(typeof fetch!=='function') return;
@@ -773,13 +816,16 @@ function overUpdate(){ over.t++; updateParts(); let p; while((p=consumeTap())){ 
   if(hit(p,OV_MENU)||p.x<0){ state=S.MENU; return; } } }
 function drawOver(){
   vgrad(0,0,W,H,'#101a3a','#04060e');
-  textCS('GOALIE',80,2,C.grey,C.black);
+  textCS('LEVEL '+curLevel(),80,2,C.gold,C.black);
   textCS('GAME OVER',106,4,C.red,C.black);
   ctx.fillStyle=C.panel; ctx.fillRect(40,150,W-80,112); ctx.fillStyle=C.gold; ctx.fillRect(40,150,W-80,4);
   textCS('YOUR SCORE',176,1,C.grey,C.black); textCS(''+over.score,194,6,C.yellow,C.black);
   if(over.medal){ drawMedal(W/2,300,over.medal,20); textCS(over.medal.n+' MEDAL',330,1,over.medal.c,C.black); }
   else textCS('NO MEDAL - GET 10+ POINTS',312,1,C.grey,C.black);
   if(over.nb&&frame%16<10) textCS('NEW BEST!',250,2,C.green,C.black); else textCS('BEST  '+over.best,250,1,C.cream,C.black);
+  { const laps=(G1.tc&&G1.tc.laps)||0, done=G1.tc?ZONES.filter(z=>G1.tc.done[z]).length:0;
+    if(laps>0) textCS('CLEARED '+laps+' LEVEL'+(laps>1?'S':'')+'!',358,1.4,C.gold,C.black);
+    else textCS('TARGETS '+done+'/5 - CLEAR ALL TO LEVEL UP',358,1.1,C.grey,C.black); }
   drawParts();
   drawBtn(OV_PLAY,false); ctx.fillStyle=C.green; ctx.fillRect(OV_PLAY.x,OV_PLAY.y,OV_PLAY.w,3);
   drawText('PLAY',OV_PLAY.x+OV_PLAY.w/2-textW('PLAY',2)/2,OV_PLAY.y+8,2,C.white); drawText('AGAIN',OV_PLAY.x+OV_PLAY.w/2-textW('AGAIN',1)/2,OV_PLAY.y+28,1,C.green);
