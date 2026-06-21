@@ -481,32 +481,39 @@ const EXIT_BTN={x:4,y:3,w:46,h:20};             // quit to menu mid-game
 // the attacker roams the WHOLE field now (front and behind the net)
 const SH_MINX=20, SH_MAXX=W-20, SH_MINY=34, SH_MAXY=424;
 const NETBOX={x:56,y:62,w:188,h:156};            // the goal cage - solid; you go AROUND the posts to get behind
-const PLAYER_R=7;                                 // other players' radius (collision + shot block)
+const PLAYER_R=10;                                // other players' radius (collision + shot block)
 const CREASE={cx:AIM_CX, cy:NET1.y+NET1.h, r:74};
 function inCrease(x,y){ return (y-CREASE.cy)>0 && dist(x,y,CREASE.cx,CREASE.cy)<CREASE.r; }
-// ---- 5 defenders (block shots) + 5 offense (visual teammates), wandering ----
+// ---- 10 players anchored to home spots with LIMITED range (foosball/table-hockey style) ----
 let players=[];
-function repickTarget(p){
-  if(p.team==='D'){ p.tx=rnd(70,W-70); p.ty=rnd(120,330); }   // defenders favor the shooting lane
-  else { p.tx=rnd(28,W-28); p.ty=rnd(46,415); }               // offense roam everywhere (incl behind)
-  p.rt=50+(rnd(0,90)|0);
+const PLAYER_HOMES=[
+  // 5 DEFENDERS strung across the shooting lane in front of the goal
+  {x:88,y:250,t:'D'},{x:150,y:236,t:'D'},{x:212,y:250,t:'D'},{x:118,y:300,t:'D'},{x:182,y:300,t:'D'},
+  // 5 OFFENSE teammates out at the sides / up top / deep (clear of the cage)
+  {x:30,y:150,t:'O'},{x:W-30,y:150,t:'O'},{x:34,y:370,t:'O'},{x:W-34,y:370,t:'O'},{x:150,y:408,t:'O'}
+];
+function spawnPlayers(){ players=PLAYER_HOMES.map(h=>({team:h.t, hx:h.x, hy:h.y, x:h.x, y:h.y,
+  ph:rnd(0,6.28), spd:0.018+rnd(0,0.018), rng:(h.t==='D'?26:16)+rnd(0,8), flash:0})); }
+function keepOutOfNet(p){
+  if(p.x>NETBOX.x-PLAYER_R&&p.x<NETBOX.x+NETBOX.w+PLAYER_R&&p.y>NETBOX.y-PLAYER_R&&p.y<NETBOX.y+NETBOX.h+PLAYER_R){
+    const dl=p.x-(NETBOX.x-PLAYER_R),dr=(NETBOX.x+NETBOX.w+PLAYER_R)-p.x,dt=p.y-(NETBOX.y-PLAYER_R),db=(NETBOX.y+NETBOX.h+PLAYER_R)-p.y,m=Math.min(dl,dr,dt,db);
+    if(m===dl)p.x=NETBOX.x-PLAYER_R;else if(m===dr)p.x=NETBOX.x+NETBOX.w+PLAYER_R;else if(m===dt)p.y=NETBOX.y-PLAYER_R;else p.y=NETBOX.y+NETBOX.h+PLAYER_R; }
 }
-function spawnPlayers(){ players=[]; for(let i=0;i<10;i++){ const team=i<5?'D':'O';
-  const p={team:team, x:rnd(40,W-40), y:team==='D'?rnd(120,320):rnd(60,410), tx:0,ty:0, rt:0}; repickTarget(p); players.push(p); } }
-function updatePlayers(){ for(const p of players){ if(p.flash>0)p.flash--; p.rt--; if(p.rt<=0||dist(p.x,p.y,p.tx,p.ty)<6) repickTarget(p);
-  const dx=p.tx-p.x, dy=p.ty-p.y, d=Math.hypot(dx,dy)||1, sp=p.team==='D'?1.1:0.8;
-  p.x+=dx/d*sp; p.y+=dy/d*sp; } }
+function updatePlayers(){ for(const p of players){ if(p.flash>0)p.flash--; p.ph+=p.spd;
+  p.x = p.hx + Math.sin(p.ph)*p.rng + Math.sin(p.ph*5.7)*2;     // slide along the rod + tiny vibrate
+  p.y = p.hy + Math.sin(p.ph*0.6)*7 + Math.cos(p.ph*6.3)*1.5;   // small drift + jitter
+  keepOutOfNet(p); } }
 function drawPlayer(p){
-  const x=Math.round(p.x), y=Math.round(p.y), run=Math.sin((frame+p.x)*0.2)*2;
-  const body = p.flash>0?'#ffffff':(p.team==='D'?'#b03038':'#2f7fd0');
-  const dk   = p.team==='D'?'#7a1f26':'#1c5390';
-  ctx.fillStyle=dk; ctx.fillRect(x-3,y+4,2,5+run); ctx.fillRect(x+1,y+4,2,5-run);   // legs
-  ctx.fillStyle=body; ctx.fillRect(x-4,y-4,8,9);                                     // jersey
-  ctx.fillStyle=dk; ctx.fillRect(x-4,y-4,8,2);
-  ctx.fillStyle=C.skin; ctx.fillRect(x-2,y-9,4,4);                                   // head
-  ctx.fillStyle=p.team==='D'?'#5a1318':'#143a66'; ctx.fillRect(x-3,y-11,6,3);        // helmet
-  ctx.strokeStyle=C.shaft; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(x+3,y-6); ctx.lineTo(x+7,y-13); ctx.stroke(); // stick
-  ctx.fillStyle=p.team==='D'?'#d0454d':'#5aa0e6'; ctx.fillRect(x+5,y-15,4,4);
+  const x=Math.round(p.x), y=Math.round(p.y), run=(Math.sin(p.ph*6)*2)|0;
+  const body=p.flash>0?'#ffffff':(p.team==='D'?'#c0383f':'#2f7fd0'), dk=p.team==='D'?'#7a1f26':'#1c5390';
+  ctx.fillStyle=dk; ctx.fillRect(x-5,y+5,4,8+run); ctx.fillRect(x+1,y+5,4,8-run);     // legs
+  ctx.fillStyle='#0a0a0c'; ctx.fillRect(x-6,y+12+run,5,3); ctx.fillRect(x+1,y+12-run,5,3); // cleats
+  ctx.fillStyle=body; ctx.fillRect(x-7,y-6,14,13);                                     // jersey
+  ctx.fillStyle=dk; ctx.fillRect(x-7,y-6,14,3);
+  ctx.fillStyle=C.skin; ctx.fillRect(x-3,y-13,6,6);                                    // head
+  ctx.fillStyle=p.team==='D'?'#5a1318':'#143a66'; ctx.fillRect(x-5,y-16,10,4);         // helmet
+  ctx.strokeStyle=C.shaft; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(x+5,y-8); ctx.lineTo(x+11,y-19); ctx.stroke();
+  ctx.fillStyle=p.team==='D'?'#d0454d':'#5aa0e6'; ctx.fillRect(x+8,y-23,6,6);          // crosse head
 }
 function drawPlayers(behind){ for(const p of players){ if((p.y<NET1.y)===behind) drawPlayer(p); } }
 function resolveObstacles(x,y){
@@ -631,7 +638,7 @@ function g1Update(){
     } else { b.x+=b.vx; b.y+=b.vy; }
     const lc=(1.25+d*0.95)*(b.bnc?0.38:1); const dx=b.tx-gk.x; gk.x=clamp(gk.x+clamp(dx,-lc,lc),mn,mx); gk.lunge=clamp(dx*0.4,-6,6);
     // a DEFENDER in the lane blocks the shot
-    if(b.t>4){ for(const pl of players){ if(pl.team==='D' && dist(b.x,b.y,pl.x,pl.y) < PLAYER_R+5){
+    if(b.t>4){ for(const pl of players){ if(pl.team==='D' && dist(b.x,b.y,pl.x,pl.y) < PLAYER_R+2){
       G1.msg='BLOCKED!'; G1.msgC=C.red; G1.msgT=64; G1.shake=6; G1.streak=0; SFX.save();
       pl.flash=12; spawn(b.x,b.y,12,[C.red,C.cream,C.dgrey]);
       b.vx=-b.vx*0.25; b.vy=Math.abs(b.vy)*0.3+1.4; b.bounce=true;
@@ -820,8 +827,8 @@ function drawToasts(){
   if(toastT>150){ toasts.shift(); toastT=0; }
 }
 const SHARE_URL='https://michaeltholland.github.io/agent-mode/';
-const APP_VERSION='1.9';     // bump every deploy; the update check compares against the live file
-const WHATS_NEW='10 PLAYERS ON THE FIELD + DEFENDERS';   // one-line highlight shown on the update prompt
+const APP_VERSION='2.0';     // bump every deploy; the update check compares against the live file
+const WHATS_NEW='DEFENDERS HOLD POSITION - WEAVE PAST';   // one-line highlight shown on the update prompt
 let updateReady=false, updateNote='';
 function updateCheck(){
   if(typeof fetch!=='function') return;
