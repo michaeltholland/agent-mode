@@ -478,10 +478,46 @@ const GOAL_LINE=NET1.y+NET1.h;                   // aim below this = bounce off 
 const FH_OPEN=80, FH_SHUT=150;                  // five hole opens more often now
 const SHOT_CLOCK=300;                           // 5 seconds at 60fps to get the shot off
 const EXIT_BTN={x:4,y:3,w:46,h:20};             // quit to menu mid-game
-// the attacker roams the field; the CREASE (half-circle at the goal mouth) is off-limits
-const SH_MINX=38, SH_MAXX=W-38, SH_MINY=232, SH_MAXY=424;
+// the attacker roams the WHOLE field now (front and behind the net)
+const SH_MINX=20, SH_MAXX=W-20, SH_MINY=34, SH_MAXY=424;
+const NETBOX={x:56,y:62,w:188,h:156};            // the goal cage - solid; you go AROUND the posts to get behind
+const PLAYER_R=7;                                 // other players' radius (collision + shot block)
 const CREASE={cx:AIM_CX, cy:NET1.y+NET1.h, r:74};
 function inCrease(x,y){ return (y-CREASE.cy)>0 && dist(x,y,CREASE.cx,CREASE.cy)<CREASE.r; }
+// ---- 5 defenders (block shots) + 5 offense (visual teammates), wandering ----
+let players=[];
+function repickTarget(p){
+  if(p.team==='D'){ p.tx=rnd(70,W-70); p.ty=rnd(120,330); }   // defenders favor the shooting lane
+  else { p.tx=rnd(28,W-28); p.ty=rnd(46,415); }               // offense roam everywhere (incl behind)
+  p.rt=50+(rnd(0,90)|0);
+}
+function spawnPlayers(){ players=[]; for(let i=0;i<10;i++){ const team=i<5?'D':'O';
+  const p={team:team, x:rnd(40,W-40), y:team==='D'?rnd(120,320):rnd(60,410), tx:0,ty:0, rt:0}; repickTarget(p); players.push(p); } }
+function updatePlayers(){ for(const p of players){ if(p.flash>0)p.flash--; p.rt--; if(p.rt<=0||dist(p.x,p.y,p.tx,p.ty)<6) repickTarget(p);
+  const dx=p.tx-p.x, dy=p.ty-p.y, d=Math.hypot(dx,dy)||1, sp=p.team==='D'?1.1:0.8;
+  p.x+=dx/d*sp; p.y+=dy/d*sp; } }
+function drawPlayer(p){
+  const x=Math.round(p.x), y=Math.round(p.y), run=Math.sin((frame+p.x)*0.2)*2;
+  const body = p.flash>0?'#ffffff':(p.team==='D'?'#b03038':'#2f7fd0');
+  const dk   = p.team==='D'?'#7a1f26':'#1c5390';
+  ctx.fillStyle=dk; ctx.fillRect(x-3,y+4,2,5+run); ctx.fillRect(x+1,y+4,2,5-run);   // legs
+  ctx.fillStyle=body; ctx.fillRect(x-4,y-4,8,9);                                     // jersey
+  ctx.fillStyle=dk; ctx.fillRect(x-4,y-4,8,2);
+  ctx.fillStyle=C.skin; ctx.fillRect(x-2,y-9,4,4);                                   // head
+  ctx.fillStyle=p.team==='D'?'#5a1318':'#143a66'; ctx.fillRect(x-3,y-11,6,3);        // helmet
+  ctx.strokeStyle=C.shaft; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(x+3,y-6); ctx.lineTo(x+7,y-13); ctx.stroke(); // stick
+  ctx.fillStyle=p.team==='D'?'#d0454d':'#5aa0e6'; ctx.fillRect(x+5,y-15,4,4);
+}
+function drawPlayers(behind){ for(const p of players){ if((p.y<NET1.y)===behind) drawPlayer(p); } }
+function resolveObstacles(x,y){
+  // can't walk into the goal cage
+  if(x>NETBOX.x-PLAYER_R && x<NETBOX.x+NETBOX.w+PLAYER_R && y>NETBOX.y-PLAYER_R && y<NETBOX.y+NETBOX.h+PLAYER_R){
+    const dl=x-(NETBOX.x-PLAYER_R), dr=(NETBOX.x+NETBOX.w+PLAYER_R)-x, dt=y-(NETBOX.y-PLAYER_R), db=(NETBOX.y+NETBOX.h+PLAYER_R)-y, m=Math.min(dl,dr,dt,db);
+    if(m===dl)x=NETBOX.x-PLAYER_R; else if(m===dr)x=NETBOX.x+NETBOX.w+PLAYER_R; else if(m===dt)y=NETBOX.y-PLAYER_R; else y=NETBOX.y+NETBOX.h+PLAYER_R;
+  }
+  for(const p of players){ const dx=x-p.x, dy=y-p.y, d=Math.hypot(dx,dy), mn=PLAYER_R+8; if(d<mn&&d>0){ x=p.x+dx/d*mn; y=p.y+dy/d*mn; } }
+  return {x:clamp(x,SH_MINX,SH_MAXX), y:clamp(y,SH_MINY,SH_MAXY)};
+}
 function g1Init(){
   G1.shots=10; G1.score=0; G1.goals=0;
   G1.aimX=AIM_CX; G1.aimY=AIM_CY;
@@ -494,6 +530,7 @@ function g1Init(){
   G1.taunt=''; G1.tauntT=0; G1.levelUp=0;
   G1.tc={done:{TL:false,TR:false,BL:false,BR:false,FH:false}, active:null, laps:0};
   tcPick();
+  spawnPlayers();
   resetSticks();
 }
 const ZONES=['TL','TR','BL','BR','FH'];
@@ -545,17 +582,19 @@ function g1Update(){
   if(G1.tut){ if(consumeTap()){ G1.tut=false; resetSticks(); } rReleased=false; return; }
   // EXIT button - quit to the menu from any phase (scan without disturbing other taps)
   for(let i=0;i<pressQueue.length;i++){ if(pressQueue[i].x>=0 && hit(pressQueue[i],EXIT_BTN)){ pressQueue.splice(i,1); state=S.MENU; resetSticks(); SFX.ui(); return; } }
+  updatePlayers();
   const gk=G1.gk, mn=NET1.x+gk.bw/2+2, mx=NET1.x+NET1.w-gk.bw/2-2;
   // LEFT STICK / WASD: move the attacker in any direction (swings the angle, closes the gap)
   if(G1.phase!=='foul'){
     const moveDx = sL.dx + (keys.moveR?1:0) - (keys.moveL?1:0);
     const moveDy = sL.dy + (keys.moveD?1:0) - (keys.moveU?1:0);
     const mspd=2.8*trainMul();
-    G1.shooterX=clamp(G1.shooterX + moveDx*mspd, SH_MINX, SH_MAXX);
-    G1.shooterY=clamp(G1.shooterY + moveDy*mspd, SH_MINY, SH_MAXY);
+    const r=resolveObstacles(clamp(G1.shooterX+moveDx*mspd,SH_MINX,SH_MAXX), clamp(G1.shooterY+moveDy*mspd,SH_MINY,SH_MAXY));
+    G1.shooterX=r.x; G1.shooterY=r.y;
     // cross the crease line = whistle. ref comes out and flags you
     if(G1.phase==='aim' && inCrease(G1.shooterX,G1.shooterY)) g1Foul();
   }
+  G1.behind = G1.shooterY < NET1.y;    // behind the cage - can't score from here
   // goalie plays the angle: slides toward the side the shooter is on (sharper later)
   gk.idealX = clamp(AIM_CX + (G1.shooterX - W/2)*(0.42+d*0.15), mn, mx);
 
@@ -580,7 +619,7 @@ function g1Update(){
       }
       let fire=rReleased;
       let p; while((p=consumeTap())){ if(p.x<0) fire=true; }   // space = shoot; drain the rest
-      if(fire) g1Fire();
+      if(fire){ if(G1.behind){ G1.msg='COME AROUND TO SHOOT!'; G1.msgC=C.grey; G1.msgT=44; } else g1Fire(); }
     }
   } else if(G1.phase==='fly'){
     const b=G1.ball; b.t++;
@@ -591,6 +630,13 @@ function g1Update(){
       if(!b.scuffed && u>=tb){ b.scuffed=true; G1.shake=4; spawn(b.bnX,b.bnY,10,[C.grass3,C.grass2,C.cream]); }
     } else { b.x+=b.vx; b.y+=b.vy; }
     const lc=(1.25+d*0.95)*(b.bnc?0.38:1); const dx=b.tx-gk.x; gk.x=clamp(gk.x+clamp(dx,-lc,lc),mn,mx); gk.lunge=clamp(dx*0.4,-6,6);
+    // a DEFENDER in the lane blocks the shot
+    if(b.t>4){ for(const pl of players){ if(pl.team==='D' && dist(b.x,b.y,pl.x,pl.y) < PLAYER_R+5){
+      G1.msg='BLOCKED!'; G1.msgC=C.red; G1.msgT=64; G1.shake=6; G1.streak=0; SFX.save();
+      pl.flash=12; spawn(b.x,b.y,12,[C.red,C.cream,C.dgrey]);
+      b.vx=-b.vx*0.25; b.vy=Math.abs(b.vy)*0.3+1.4; b.bounce=true;
+      G1.phase='result'; G1.resT=42; return;
+    } } }
     if(b.t>=b.total){
       b.x=b.tx; b.y=b.ty;
       const inNet = b.tx>NET1.x && b.tx<NET1.x+NET1.w && b.ty>NET1.y && b.ty<NET1.y+NET1.h;
@@ -654,6 +700,7 @@ function g1Draw(){
   ctx.beginPath(); ctx.arc(CREASE.cx,CREASE.cy,CREASE.r,0,Math.PI); ctx.closePath(); ctx.fill();
   ctx.strokeStyle='rgba(228,240,255,0.75)'; ctx.lineWidth=3;
   ctx.beginPath(); ctx.arc(CREASE.cx,CREASE.cy,CREASE.r,0,Math.PI); ctx.stroke();
+  drawPlayers(true);    // players behind the cage (drawn before the net so it occludes them)
   drawBackstop(NET1); drawGoalFrame(NET1); drawMesh(NET1);
   const gk=G1.gk, fh=g1FiveHole(gk);
   // coverage = his whole vertical column (top to bottom of the net)
@@ -661,6 +708,7 @@ function g1Draw(){
   const bw2=clamp(gk.bw+gk.reach*2, 0, NET1.x+NET1.w-bx);
   ctx.fillStyle='rgba(8,8,12,0.42)'; ctx.fillRect(bx, NET1.y, bw2, NET1.h);
   drawGoalie(gk.x, NET1.y+NET1.h, gk.bw, gk.bh, gk.lunge, fh, G1.fhOpen);
+  drawPlayers(false);   // players in front of / level with the cage
   // TARGET CHALLENGE marker - shoot here next
   if(G1.tc.active && G1.phase!=='foul'){ const tp=tcZonePos(G1.tc.active,gk), pr=10+Math.sin(frame*0.18)*3, on=frame%10<6;
     ctx.strokeStyle=on?C.gold:C.white; ctx.lineWidth=2;
@@ -715,9 +763,10 @@ function g1Draw(){
   if(G1.tauntT>0){ const tx=clamp(G1.gk.x,40,W-40); drawText(G1.taunt, tx-textW(G1.taunt,1.3)/2, NET1.y-12, 1.3, frame%8<4?C.red:C.white); }
   if(G1.streak>=2) textCS('COMBO x'+G1.streak,52,1.3,(frame%8<4?C.gold:C.yellow),C.black);
   if(G1.msgT>0) textCS(G1.msg,250+Math.sin(frame*0.3)*2,3,G1.msgC,C.black);
+  if(G1.behind && G1.phase==='aim' && !G1.tut) textCS('BEHIND THE NET - COME AROUND',H-150,1.3,frame%12<7?C.red:C.cream,C.black);
   if(G1.levelUp>0) textCS('LEVEL '+(PROFILE.level)+'!',150,4,(frame%6<3?C.gold:C.yellow),C.black);
   if(G1.phase==='foul'){ textCS('FOUL!',150,5,(frame%8<4?C.red:C.yellow),C.black); textCS('CREASE VIOLATION',188,1.3,C.cream,C.black); textCS('TURNOVER - SHOT LOST',208,1.2,C.grey,C.black); }
-  if(G1.tut) tutorial('GOALIE',['MOVE = LEFT STICK','AIM = RIGHT STICK (LIFT TO SHOOT)','HIT THE GOLD TARGET - IT MOVES','CLEAR 4 CORNERS + 5 HOLE = LEVEL UP','AIM TURF TO BOUNCE - NO CREASE!']);
+  if(G1.tut) tutorial('GOALIE',['MOVE = LEFT STICK   AIM = RIGHT','HIT THE GOLD TARGET (IT MOVES)','CLEAR 4 CORNERS + 5 HOLE = LEVEL','RED DEFENDERS BLOCK SHOTS - DODGE','YOU CAN CARRY BEHIND THE NET']);
 }
 
 // ====================== TUTORIAL ======================
@@ -771,8 +820,8 @@ function drawToasts(){
   if(toastT>150){ toasts.shift(); toastT=0; }
 }
 const SHARE_URL='https://michaeltholland.github.io/agent-mode/';
-const APP_VERSION='1.8';     // bump every deploy; the update check compares against the live file
-const WHATS_NEW='TARGET CHALLENGE + DIFFICULTY';   // one-line highlight shown on the update prompt
+const APP_VERSION='1.9';     // bump every deploy; the update check compares against the live file
+const WHATS_NEW='10 PLAYERS ON THE FIELD + DEFENDERS';   // one-line highlight shown on the update prompt
 let updateReady=false, updateNote='';
 function updateCheck(){
   if(typeof fetch!=='function') return;
