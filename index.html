@@ -393,14 +393,17 @@ const FEEDBACK_EMAIL='laxtapper.feedback@gmail.com';
 const HWg=(W-48-12)/2;   // grid half-width
 const DIFF_NAMES=['ROOKIE','PRO','ELITE'];
 const DIFF_BTN={x:70,y:18,w:W-140,h:24};
+let gameMode='shootout';
+function startGame(m){ gameMode=m; triviaStart(); }
 const MENU_BTNS=[
-  {label:'PLAY GOALIE', r:{x:24,y:238,w:W-48,h:54},      go:()=>{ triviaStart(); }},
-  {label:'LOCKER ROOM', r:{x:24,y:300,w:HWg,h:46},       go:()=>{ lockerOpen(); }},
-  {label:'RANKS',       r:{x:36+HWg,y:300,w:HWg,h:46},   go:()=>{ lbOpen('MENU'); }},
-  {label:'BADGES',      r:{x:24,y:352,w:HWg,h:46},       go:()=>{ state=S.BADGES; }},
-  {label:'HOW TO PLAY', r:{x:36+HWg,y:352,w:HWg,h:46},   go:()=>{ helpPage=0; state=S.HELP; }},
-  {label:'FEEDBACK',    r:{x:24,y:404,w:HWg,h:46},       go:()=>{ surveyOpen('MENU'); }},
-  {label:'SHARE GAME',  r:{x:36+HWg,y:404,w:HWg,h:46},   go:()=>{ shareGame(0); }}
+  {label:'GOALIE SHOOTOUT', r:{x:24,y:222,w:W-48,h:38},  go:()=>{ startGame('shootout'); }},
+  {label:'FULL FIELD',      r:{x:24,y:264,w:W-48,h:38},  go:()=>{ startGame('field'); }},
+  {label:'LOCKER ROOM', r:{x:24,y:310,w:HWg,h:44},       go:()=>{ lockerOpen(); }},
+  {label:'RANKS',       r:{x:36+HWg,y:310,w:HWg,h:44},   go:()=>{ lbOpen('MENU'); }},
+  {label:'BADGES',      r:{x:24,y:358,w:HWg,h:44},       go:()=>{ state=S.BADGES; }},
+  {label:'HOW TO PLAY', r:{x:36+HWg,y:358,w:HWg,h:44},   go:()=>{ helpPage=0; state=S.HELP; }},
+  {label:'FEEDBACK',    r:{x:24,y:406,w:HWg,h:44},       go:()=>{ surveyOpen('MENU'); }},
+  {label:'SHARE GAME',  r:{x:36+HWg,y:406,w:HWg,h:44},   go:()=>{ shareGame(0); }}
 ];
 const UPDATE_BTN={x:40,y:H-44,w:W-80,h:22};
 function menuUpdate(){
@@ -426,16 +429,13 @@ function drawMenu(){
   { const b=DIFF_BTN, dn=DIFF_NAMES[PROFILE.diff||0], dc=[C.green,C.gold,C.red][PROFILE.diff||0];
     ctx.fillStyle=C.panel; ctx.fillRect(b.x,b.y,b.w,b.h); ctx.fillStyle=dc; ctx.fillRect(b.x,b.y,b.w,2); ctx.fillRect(b.x,b.y+b.h-2,b.w,2);
     const t='GOALIE: '+dn; drawText(t,b.x+(b.w-textW(t,1.2))/2,b.y+7,1.2,dc); }
-  const by=196+Math.sin(frame*0.12)*7;
-  ctx.strokeStyle=C.shaft; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(W/2+18,by+14); ctx.lineTo(W/2+4,by); ctx.stroke();
-  ctx.fillStyle=C.orange; ctx.fillRect(W/2-2,by-8,10,10); ctx.fillStyle=C.crosse; ctx.fillRect(W/2-1,by-7,8,8);
-  drawBall(W/2-6,by-3,5);
   const info='BEST '+HI.g1+'  LV '+curLevel()+'  COINS '+PROFILE.coins;
-  drawText(info, (W-textW(info,1.35))/2, 220, 1.35, C.gold);
+  drawText(info, (W-textW(info,1.3))/2, 192, 1.3, C.gold);
   for(let i=0;i<MENU_BTNS.length;i++){
-    const b=MENU_BTNS[i].r, sel=(i===menuSel), big=(i===0), sc=big?2.2:1.45;
+    const b=MENU_BTNS[i].r, sel=(i===menuSel), big=(i<2), sc=big?1.7:1.45;
     ctx.fillStyle=sel?C.panelHi:C.panel; ctx.fillRect(b.x,b.y,b.w,b.h);
-    ctx.fillStyle=sel?C.yellow:C.dgrey; ctx.fillRect(b.x,b.y,b.w,3); ctx.fillRect(b.x,b.y+b.h-3,b.w,3); ctx.fillRect(b.x,b.y,3,b.h); ctx.fillRect(b.x+b.w-3,b.y,3,b.h);
+    const ac = big?C.green:(sel?C.yellow:C.dgrey);
+    ctx.fillStyle=sel?C.yellow:ac; ctx.fillRect(b.x,b.y,b.w,3); ctx.fillRect(b.x,b.y+b.h-3,b.w,3); ctx.fillRect(b.x,b.y,3,b.h); ctx.fillRect(b.x+b.w-3,b.y,3,b.h);
     drawText(MENU_BTNS[i].label,b.x+(b.w-textW(MENU_BTNS[i].label,sc))/2,b.y+(b.h-5*sc)/2,sc,sel?C.white:C.cream);
     if(MENU_BTNS[i].label==='SHARE GAME') shareBtn={x:b.x,y:b.y,w:b.w,h:b.h,score:0};
   }
@@ -522,7 +522,7 @@ function resolveObstacles(x,y){
     const dl=x-(NETBOX.x-PLAYER_R), dr=(NETBOX.x+NETBOX.w+PLAYER_R)-x, dt=y-(NETBOX.y-PLAYER_R), db=(NETBOX.y+NETBOX.h+PLAYER_R)-y, m=Math.min(dl,dr,dt,db);
     if(m===dl)x=NETBOX.x-PLAYER_R; else if(m===dr)x=NETBOX.x+NETBOX.w+PLAYER_R; else if(m===dt)y=NETBOX.y-PLAYER_R; else y=NETBOX.y+NETBOX.h+PLAYER_R;
   }
-  for(const p of players){ const dx=x-p.x, dy=y-p.y, d=Math.hypot(dx,dy), mn=PLAYER_R+8; if(d<mn&&d>0){ x=p.x+dx/d*mn; y=p.y+dy/d*mn; } }
+  for(const p of players){ if(p.team!=='D') continue; const dx=x-p.x, dy=y-p.y, d=Math.hypot(dx,dy), mn=PLAYER_R+8; if(d<mn&&d>0){ x=p.x+dx/d*mn; y=p.y+dy/d*mn; } }   // only DEFENDERS are solid
   return {x:clamp(x,SH_MINX,SH_MAXX), y:clamp(y,SH_MINY,SH_MAXY)};
 }
 function g1Init(){
@@ -537,7 +537,7 @@ function g1Init(){
   G1.taunt=''; G1.tauntT=0; G1.levelUp=0;
   G1.tc={done:{TL:false,TR:false,BL:false,BR:false,FH:false}, active:null, laps:0};
   tcPick();
-  spawnPlayers();
+  if(gameMode==='field') spawnPlayers(); else players=[];   // shootout = just you + keeper
   resetSticks();
 }
 const ZONES=['TL','TR','BL','BR','FH'];
@@ -581,8 +581,8 @@ function g1Fire(){
 }
 function g1Update(){
   if(G1.msgT>0) G1.msgT--; if(G1.tauntT>0) G1.tauntT--; if(G1.levelUp>0) G1.levelUp--; G1.shake*=0.82;
-  // difficulty ramps within a game (shot 1->10) AND climbs with your level (games played)
-  const d=clamp(diffFactor() + (10-G1.shots)/9, 0, 1.6);
+  // difficulty ramps within a game (shot 1->10) AND climbs with your level; shootout plays a touch easier
+  const d=clamp(diffFactor() + (gameMode==='shootout'?-0.12:0) + (10-G1.shots)/9, 0, 1.6);
   G1.gk.reach=11+d*6;                                  // easier coverage (more open net)
   const openLen=Math.round((FH_OPEN+24)-d*16);         // five hole open longer: 104 -> 88 frames
   G1.fhT=(G1.fhT+1)%(openLen+FH_SHUT); G1.fhOpen=G1.fhT<openLen;
@@ -637,13 +637,20 @@ function g1Update(){
       if(!b.scuffed && u>=tb){ b.scuffed=true; G1.shake=4; spawn(b.bnX,b.bnY,10,[C.grass3,C.grass2,C.cream]); }
     } else { b.x+=b.vx; b.y+=b.vy; }
     const lc=(1.25+d*0.95)*(b.bnc?0.38:1); const dx=b.tx-gk.x; gk.x=clamp(gk.x+clamp(dx,-lc,lc),mn,mx); gk.lunge=clamp(dx*0.4,-6,6);
-    // a DEFENDER in the lane blocks the shot
-    if(b.t>4){ for(const pl of players){ if(pl.team==='D' && dist(b.x,b.y,pl.x,pl.y) < PLAYER_R+2){
-      G1.msg='BLOCKED!'; G1.msgC=C.red; G1.msgT=64; G1.shake=6; G1.streak=0; SFX.save();
-      pl.flash=12; spawn(b.x,b.y,12,[C.red,C.cream,C.dgrey]);
-      b.vx=-b.vx*0.25; b.vy=Math.abs(b.vy)*0.3+1.4; b.bounce=true;
-      G1.phase='result'; G1.resT=42; return;
-    } } }
+    // a DEFENDER in the lane may block the shot - ~30% chance, rolled once per defender per shot
+    if(b.t>4){ for(let pi=0;pi<players.length;pi++){ const pl=players[pi];
+      if(pl.team==='D' && dist(b.x,b.y,pl.x,pl.y) < PLAYER_R+2){
+        if(!b.tested) b.tested={};
+        if(!b.tested[pi]){ b.tested[pi]=true;
+          if(Math.random()<0.30){
+            G1.msg='BLOCKED!'; G1.msgC=C.red; G1.msgT=64; G1.shake=6; G1.streak=0; SFX.save();
+            pl.flash=12; spawn(b.x,b.y,12,[C.red,C.cream,C.dgrey]);
+            b.vx=-b.vx*0.25; b.vy=Math.abs(b.vy)*0.3+1.4; b.bounce=true;
+            G1.phase='result'; G1.resT=42; return;
+          }
+        }
+      }
+    } }
     if(b.t>=b.total){
       b.x=b.tx; b.y=b.ty;
       const inNet = b.tx>NET1.x && b.tx<NET1.x+NET1.w && b.ty>NET1.y && b.ty<NET1.y+NET1.h;
@@ -773,7 +780,11 @@ function g1Draw(){
   if(G1.behind && G1.phase==='aim' && !G1.tut) textCS('BEHIND THE NET - COME AROUND',H-150,1.3,frame%12<7?C.red:C.cream,C.black);
   if(G1.levelUp>0) textCS('LEVEL '+(PROFILE.level)+'!',150,4,(frame%6<3?C.gold:C.yellow),C.black);
   if(G1.phase==='foul'){ textCS('FOUL!',150,5,(frame%8<4?C.red:C.yellow),C.black); textCS('CREASE VIOLATION',188,1.3,C.cream,C.black); textCS('TURNOVER - SHOT LOST',208,1.2,C.grey,C.black); }
-  if(G1.tut) tutorial('GOALIE',['MOVE = LEFT STICK   AIM = RIGHT','HIT THE GOLD TARGET (IT MOVES)','CLEAR 4 CORNERS + 5 HOLE = LEVEL','RED DEFENDERS BLOCK SHOTS - DODGE','YOU CAN CARRY BEHIND THE NET']);
+  if(G1.tut){ const title=gameMode==='field'?'FULL FIELD':'SHOOTOUT';
+    const lines=['MOVE = LEFT STICK   AIM = RIGHT','HIT THE GOLD TARGET (IT MOVES)','CLEAR 4 CORNERS + 5 HOLE = LEVEL'];
+    if(gameMode==='field') lines.push('RED DEFENDERS CAN BLOCK - WEAVE','CARRY BEHIND THE NET TO DODGE');
+    else lines.push('AIM TURF TO BOUNCE - NO CREASE!');
+    tutorial(title,lines); }
 }
 
 // ====================== TUTORIAL ======================
@@ -827,8 +838,8 @@ function drawToasts(){
   if(toastT>150){ toasts.shift(); toastT=0; }
 }
 const SHARE_URL='https://michaeltholland.github.io/agent-mode/';
-const APP_VERSION='2.0';     // bump every deploy; the update check compares against the live file
-const WHATS_NEW='DEFENDERS HOLD POSITION - WEAVE PAST';   // one-line highlight shown on the update prompt
+const APP_VERSION='2.1';     // bump every deploy; the update check compares against the live file
+const WHATS_NEW='2 MODES: SHOOTOUT + FULL FIELD';   // one-line highlight shown on the update prompt
 let updateReady=false, updateNote='';
 function updateCheck(){
   if(typeof fetch!=='function') return;
