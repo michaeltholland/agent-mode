@@ -389,62 +389,82 @@ let state=welcomed?S.MENU:S.WELCOME, frame=0, menuSel=0;
 // where the FEEDBACK / survey emails go (a throwaway address, confirmed by owner)
 const FEEDBACK_EMAIL='laxtapper.feedback@gmail.com';
 
-// ====================== MENU ======================
-const HWg=(W-48-12)/2;   // grid half-width
+// ====================== MENU (Control-Center style tiles) ======================
 const DIFF_NAMES=['ROOKIE','PRO','ELITE'];
-const DIFF_BTN={x:70,y:18,w:W-140,h:24};
 let gameMode='shootout';
 function startGame(m){ gameMode=m; triviaStart(); }
-const MENU_BTNS=[
-  {label:'GOALIE SHOOTOUT', r:{x:24,y:222,w:W-48,h:38},  go:()=>{ startGame('shootout'); }},
-  {label:'FULL FIELD',      r:{x:24,y:264,w:W-48,h:38},  go:()=>{ startGame('field'); }},
-  {label:'LOCKER ROOM', r:{x:24,y:310,w:HWg,h:44},       go:()=>{ lockerOpen(); }},
-  {label:'RANKS',       r:{x:36+HWg,y:310,w:HWg,h:44},   go:()=>{ lbOpen('MENU'); }},
-  {label:'BADGES',      r:{x:24,y:358,w:HWg,h:44},       go:()=>{ state=S.BADGES; }},
-  {label:'HOW TO PLAY', r:{x:36+HWg,y:358,w:HWg,h:44},   go:()=>{ helpPage=0; state=S.HELP; }},
-  {label:'FEEDBACK',    r:{x:24,y:406,w:HWg,h:44},       go:()=>{ surveyOpen('MENU'); }},
-  {label:'SHARE GAME',  r:{x:36+HWg,y:406,w:HWg,h:44},   go:()=>{ shareGame(0); }}
+const M_PLAY1={x:18,y:50,w:W-36,h:40}, M_PLAY2={x:18,y:94,w:W-36,h:40};
+const M_DIFF=[{x:22,y:158,w:84,h:30},{x:108,y:158,w:84,h:30},{x:194,y:158,w:84,h:30}];
+const GW=(W-36-12)/2;
+function gtile(c,row){ return {x:18+c*(GW+12), y:202+row*74, w:GW, h:66}; }
+const M_TILES=[
+  {label:'HOW TO PLAY', icon:'help',   r:gtile(0,0), go:()=>{ helpPage=0; state=S.HELP; }},
+  {label:'LOCKER',      icon:'locker', r:gtile(1,0), go:()=>{ lockerOpen(); }},
+  {label:'RANKS',       icon:'trophy', r:gtile(0,1), go:()=>{ lbOpen('MENU'); }},
+  {label:'BADGES',      icon:'star',   r:gtile(1,1), go:()=>{ state=S.BADGES; }},
+  {label:'FEEDBACK',    icon:'chat',   r:gtile(0,2), go:()=>{ surveyOpen('MENU'); }},
+  {label:'SHARE',       icon:'share',  r:gtile(1,2), go:()=>{ shareGame(0); }}
 ];
 const UPDATE_BTN={x:40,y:H-44,w:W-80,h:22};
-function menuUpdate(){
-  let p; while((p=consumeTap())){
-    if(updateReady && p.x>=0 && hit(p,UPDATE_BTN)){ doUpdate(); return; }
-    if(hit(p,DIFF_BTN)){ PROFILE.diff=((PROFILE.diff||0)+1)%3; profSave(); SFX.ui(); return; }
-    if(p.x<0){ MENU_BTNS[menuSel].go(); SFX.start(); return; }
-    for(let i=0;i<MENU_BTNS.length;i++){ if(hit(p,MENU_BTNS[i].r)){ menuSel=i; SFX.start(); MENU_BTNS[i].go(); return; } }
-  }
-  const n=MENU_BTNS.length;
+function menuActivate(i){ SFX.start(); if(i===0) startGame('shootout'); else if(i===1) startGame('field'); else M_TILES[i-2].go(); }
+function menuUpdate(){ let p; while((p=consumeTap())){
+  if(updateReady && p.x>=0 && hit(p,UPDATE_BTN)){ doUpdate(); return; }
+  if(p.x<0){ menuActivate(menuSel); return; }
+  if(hit(p,M_PLAY1)){ menuSel=0; menuActivate(0); return; }
+  if(hit(p,M_PLAY2)){ menuSel=1; menuActivate(1); return; }
+  for(let i=0;i<3;i++){ if(hit(p,M_DIFF[i])){ PROFILE.diff=i; profSave(); SFX.ui(); return; } }
+  for(let i=0;i<M_TILES.length;i++){ if(hit(p,M_TILES[i].r)){ menuSel=i+2; menuActivate(i+2); return; } }
+}
+  const n=2+M_TILES.length;
   if(keys.aimU){ menuSel=(menuSel+n-1)%n; keys.aimU=false; }
   if(keys.aimD){ menuSel=(menuSel+1)%n; keys.aimD=false; }
 }
+// --- rounded UI helpers drawn on the crisp text layer (tctx) ---
+function tRR(x,y,w,h,r){ tctx.beginPath(); tctx.moveTo(x+r,y); tctx.arcTo(x+w,y,x+w,y+h,r); tctx.arcTo(x+w,y+h,x,y+h,r); tctx.arcTo(x,y+h,x,y,r); tctx.arcTo(x,y,x+w,y,r); tctx.closePath(); }
+function tileBox(x,y,w,h,fill,acc){ tRR(x,y,w,h,12); tctx.fillStyle=fill; tctx.fill(); if(acc){ tctx.lineWidth=2; tctx.strokeStyle=acc; tctx.stroke(); } }
+function tStar(cx,cy,r,col){ tctx.beginPath(); for(let i=0;i<10;i++){ const a=-Math.PI/2+i*Math.PI/5, rr=(i%2)?r*0.45:r; tctx[i?'lineTo':'moveTo'](cx+Math.cos(a)*rr,cy+Math.sin(a)*rr);} tctx.closePath(); tctx.fillStyle=col; tctx.fill(); }
+function mIcon(name,cx,cy,col){ tctx.save(); tctx.strokeStyle=col; tctx.fillStyle=col; tctx.lineWidth=2.5; tctx.lineJoin='round';
+  if(name==='help'){ tctx.beginPath(); tctx.arc(cx,cy,10,0,7); tctx.stroke(); tctx.font='bold 16px "Trebuchet MS",sans-serif'; tctx.textAlign='center'; tctx.textBaseline='middle'; tctx.fillText('?',cx,cy+1); }
+  else if(name==='locker'){ tctx.fillRect(cx-8,cy-6,16,15); tctx.fillRect(cx-13,cy-6,6,7); tctx.fillRect(cx+7,cy-6,6,7); tctx.fillStyle='#0a0f1e'; tctx.beginPath(); tctx.moveTo(cx-4,cy-6); tctx.lineTo(cx,cy-2); tctx.lineTo(cx+4,cy-6); tctx.closePath(); tctx.fill(); }
+  else if(name==='trophy'){ tctx.fillRect(cx-9,cy-11,18,8); tctx.beginPath(); tctx.arc(cx,cy-3,9,0,Math.PI); tctx.fill(); tctx.lineWidth=2; tctx.beginPath(); tctx.arc(cx-9,cy-8,5,0.5*Math.PI,1.5*Math.PI); tctx.stroke(); tctx.beginPath(); tctx.arc(cx+9,cy-8,5,-0.5*Math.PI,0.5*Math.PI); tctx.stroke(); tctx.fillRect(cx-2,cy+5,4,5); tctx.fillRect(cx-7,cy+9,14,3); }
+  else if(name==='star'){ tStar(cx,cy,11,col); }
+  else if(name==='chat'){ tRR(cx-11,cy-9,22,15,5); tctx.fill(); tctx.beginPath(); tctx.moveTo(cx-5,cy+4); tctx.lineTo(cx-10,cy+11); tctx.lineTo(cx-1,cy+5); tctx.closePath(); tctx.fill(); tctx.fillStyle='#0a0f1e'; for(let i=-1;i<2;i++) tctx.fillRect(cx-1.5+i*6,cy-3,3,3); }
+  else if(name==='share'){ tctx.beginPath(); tctx.moveTo(cx,cy-11); tctx.lineTo(cx,cy+3); tctx.stroke(); tctx.beginPath(); tctx.moveTo(cx-6,cy-5); tctx.lineTo(cx,cy-11); tctx.lineTo(cx+6,cy-5); tctx.stroke(); tctx.beginPath(); tctx.moveTo(cx-9,cy-1); tctx.lineTo(cx-9,cy+11); tctx.lineTo(cx+9,cy+11); tctx.lineTo(cx+9,cy-1); tctx.stroke(); }
+  tctx.restore(); }
+function drawPlayBtn(r,label,sub,idx){ const sel=menuSel===idx;
+  tileBox(r.x,r.y,r.w,r.h, sel?'#1f9a54':'#15723e', '#37c66b');
+  tctx.fillStyle='#eafff0'; tctx.beginPath(); tctx.moveTo(r.x+18,r.y+r.h/2-9); tctx.lineTo(r.x+18,r.y+r.h/2+9); tctx.lineTo(r.x+34,r.y+r.h/2); tctx.closePath(); tctx.fill();
+  drawText(label, r.x+46, r.y+8, 1.55, C.white);
+  drawText(sub, r.x+46, r.y+24, 1.0, '#c8f2d4');
+}
 function drawMenu(){
+  // dimmed pixel field backdrop (sprite layer)
   vgrad(0,0,W,H,C.skyTop,C.skyBot);
   ctx.fillStyle=C.grass1; ctx.fillRect(0,H*0.5,W,H*0.5);
-  for(let i=0;i<6;i++){ ctx.fillStyle=i%2?C.grass2:C.grass3; ctx.fillRect(0,H*0.5+i*22,W,11); }
-  ctx.fillStyle=C.panel; ctx.fillRect(20,46,W-40,120);
-  ctx.fillStyle=C.gold; ctx.fillRect(20,46,W-40,6); ctx.fillRect(20,160,W-40,6);
-  textCS('LACROSSE',72,4,C.yellow,C.orangeDk);
-  textCS('SHOOTOUT',106,5,C.orange,C.black);
-  textCS('- BEAT THE KEEPER -',146,1,C.cream,C.black);
-  { const b=DIFF_BTN, dn=DIFF_NAMES[PROFILE.diff||0], dc=[C.green,C.gold,C.red][PROFILE.diff||0];
-    ctx.fillStyle=C.panel; ctx.fillRect(b.x,b.y,b.w,b.h); ctx.fillStyle=dc; ctx.fillRect(b.x,b.y,b.w,2); ctx.fillRect(b.x,b.y+b.h-2,b.w,2);
-    const t='GOALIE: '+dn; drawText(t,b.x+(b.w-textW(t,1.2))/2,b.y+7,1.2,dc); }
-  const info='BEST '+HI.g1+'  LV '+curLevel()+'  COINS '+PROFILE.coins;
-  drawText(info, (W-textW(info,1.3))/2, 192, 1.3, C.gold);
-  for(let i=0;i<MENU_BTNS.length;i++){
-    const b=MENU_BTNS[i].r, sel=(i===menuSel), big=(i<2), sc=big?1.7:1.45;
-    ctx.fillStyle=sel?C.panelHi:C.panel; ctx.fillRect(b.x,b.y,b.w,b.h);
-    const ac = big?C.green:(sel?C.yellow:C.dgrey);
-    ctx.fillStyle=sel?C.yellow:ac; ctx.fillRect(b.x,b.y,b.w,3); ctx.fillRect(b.x,b.y+b.h-3,b.w,3); ctx.fillRect(b.x,b.y,3,b.h); ctx.fillRect(b.x+b.w-3,b.y,3,b.h);
-    drawText(MENU_BTNS[i].label,b.x+(b.w-textW(MENU_BTNS[i].label,sc))/2,b.y+(b.h-5*sc)/2,sc,sel?C.white:C.cream);
-    if(MENU_BTNS[i].label==='SHARE GAME') shareBtn={x:b.x,y:b.y,w:b.w,h:b.h,score:0};
+  for(let i=0;i<8;i++){ ctx.fillStyle=i%2?C.grass2:C.grass3; ctx.fillRect(0,H*0.5+i*22,W,11); }
+  ctx.fillStyle='rgba(6,10,22,0.62)'; ctx.fillRect(0,0,W,H);
+  // crisp UI layer
+  drawText('LACROSSE SHOOTOUT',(W-textW('LACROSSE SHOOTOUT',1.8))/2,8,1.8,C.yellow);
+  const info='BEST '+HI.g1+'   LV '+curLevel()+'   COINS '+PROFILE.coins;
+  drawText(info,(W-textW(info,1.15))/2,32,1.15,C.gold);
+  drawText('v'+APP_VERSION,W-6-textW('v'+APP_VERSION,1),9,1,C.dgrey);
+  drawPlayBtn(M_PLAY1,'GOALIE SHOOTOUT','JUST YOU + THE KEEPER',0);
+  drawPlayBtn(M_PLAY2,'FULL FIELD','DODGE THE DEFENDERS',1);
+  drawText('GOALIE DIFFICULTY',(W-textW('GOALIE DIFFICULTY',1.1))/2,140,1.1,C.cream);
+  for(let i=0;i<3;i++){ const s=M_DIFF[i], on=(PROFILE.diff||0)===i, col=[C.green,C.gold,C.red][i];
+    tileBox(s.x,s.y,s.w,s.h, on?col:'rgba(22,30,52,0.92)', on?'#ffffff':'rgba(255,255,255,0.18)');
+    drawText(DIFF_NAMES[i], s.x+(s.w-textW(DIFF_NAMES[i],1.1))/2, s.y+(s.h-8)/2, 1.1, on?'#0a0a0c':C.cream); }
+  for(let i=0;i<M_TILES.length;i++){ const t=M_TILES[i], r=t.r, sel=(menuSel===i+2);
+    tileBox(r.x,r.y,r.w,r.h, sel?'rgba(44,58,92,0.96)':'rgba(22,30,52,0.92)', sel?C.yellow:'rgba(255,255,255,0.16)');
+    mIcon(t.icon, r.x+r.w/2, r.y+25, sel?C.yellow:C.cream);
+    drawText(t.label, r.x+(r.w-textW(t.label,1.15))/2, r.y+r.h-17, 1.15, C.cream);
+    if(t.label==='SHARE') shareBtn={x:r.x,y:r.y,w:r.w,h:r.h,score:0};
   }
-  drawText('v'+APP_VERSION, W-6-textW('v'+APP_VERSION,1.3), 6, 1.3, C.dgrey);
   if(updateReady){ const b=UPDATE_BTN, fl=frame%20<12;
-    ctx.fillStyle=fl?C.green:'#1f7a44'; ctx.fillRect(b.x,b.y,b.w,b.h); ctx.fillStyle=C.white; ctx.fillRect(b.x,b.y,b.w,2);
-    const t='! UPDATE AVAILABLE - TAP'; drawText(t,b.x+(b.w-textW(t,1.1))/2,b.y+7,1.1,C.white);
-    const nt='NEW: '+(updateNote||'IMPROVEMENTS & FIXES'); drawText(nt,(W-textW(nt,1))/2,H-15,1,C.gold); }
-  else textCS('TAP AN OPTION',H-16,1.4,C.cream,C.black);
+    tileBox(b.x,b.y,b.w,b.h, fl?'#1f9a54':'#15723e', C.white);
+    const tt='! UPDATE AVAILABLE - TAP'; drawText(tt,b.x+(b.w-textW(tt,1.1))/2,b.y+6,1.1,C.white);
+    const nt='NEW: '+(updateNote||'IMPROVEMENTS & FIXES'); drawText(nt,(W-textW(nt,1))/2,H-16,1,C.gold); }
+  else textC('TAP A MODE TO PLAY',H-20,1.2,C.cream);
 }
 
 // ====================== HELP ======================
@@ -838,8 +858,8 @@ function drawToasts(){
   if(toastT>150){ toasts.shift(); toastT=0; }
 }
 const SHARE_URL='https://michaeltholland.github.io/agent-mode/';
-const APP_VERSION='2.1';     // bump every deploy; the update check compares against the live file
-const WHATS_NEW='2 MODES: SHOOTOUT + FULL FIELD';   // one-line highlight shown on the update prompt
+const APP_VERSION='2.2';     // bump every deploy; the update check compares against the live file
+const WHATS_NEW='NEW EASY-TO-USE MAIN MENU';   // one-line highlight shown on the update prompt
 let updateReady=false, updateNote='';
 function updateCheck(){
   if(typeof fetch!=='function') return;
