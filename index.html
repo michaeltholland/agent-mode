@@ -586,7 +586,13 @@ function g1Init(){
 }
 const ZONES=['TL','TR','BL','BR','FH'];
 const TAUNTS=['DENIED!','NOT TODAY!','WALL!','TOO EASY!','NICE TRY!','NOPE!','GOT IT!','SIT DOWN!'];
-function tcPick(){ const inc=ZONES.filter(z=>!G1.tc.done[z]); G1.tc.active = inc.length? inc[(Math.random()*inc.length)|0] : null; }
+function tcPick(){
+  let inc=ZONES.filter(z=>!G1.tc.done[z] && z!==G1.tc.active);   // don't re-pick the spot we're already on
+  if(!inc.length) inc=ZONES.filter(z=>!G1.tc.done[z]);           // only one zone left
+  const corners=inc.filter(z=>z!=='FH');                         // corners first so the target bounces
+  const pool=corners.length? corners : inc;                      // the five hole comes last
+  G1.tc.active = pool.length? pool[(Math.random()*pool.length)|0] : null;
+}
 // which zone did a GOAL land in (4 quadrants + five hole)
 function g1Zone(tx,ty,gk){ if(g1FiveHoleHit(tx,ty,gk)) return 'FH';
   return (ty<NET1.y+NET1.h*0.5?'T':'B')+(tx<AIM_CX?'L':'R'); }
@@ -882,8 +888,8 @@ function drawToasts(){
   if(toastT>150){ toasts.shift(); toastT=0; }
 }
 const SHARE_URL='https://michaeltholland.github.io/agent-mode/';
-const APP_VERSION='2.3';     // bump every deploy; the update check compares against the live file
-const WHATS_NEW="COACH'S FAVORITE PLAYER GUIDE";   // one-line highlight shown on the update prompt
+const APP_VERSION='2.4';     // bump every deploy; the update check compares against the live file
+const WHATS_NEW='TARGETS NOW BOUNCE AROUND THE CAGE';   // one-line highlight shown on the update prompt
 let updateReady=false, updateNote='';
 function updateCheck(){
   if(typeof fetch!=='function') return;
