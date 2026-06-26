@@ -1,10 +1,24 @@
 -- ============================================================================
--- Lacrosse Shootout — COMPLETE backend setup (sponsors + promo codes)
--- Run this ONCE: Supabase dashboard -> SQL Editor -> New query -> paste -> Run.
--- This is the ONLY required setup step. After it runs, the live game's ad slot,
--- impression proof, and code/QR redemption all start working automatically.
--- (Replaces the two separate files supabase_sponsors.sql + supabase_promo_codes.sql.)
+-- Lacrosse Shootout — COMPLETE backend setup (leaderboard + sponsors + promo codes)
+-- Run this ONCE on a fresh project: Supabase -> SQL Editor -> New query -> paste -> Run.
+-- After it runs, the live game's leaderboard, ad slot, impression proof, and
+-- code/QR redemption all work (once the game points at this project's URL + key).
 -- ============================================================================
+
+-- ========================= LEADERBOARD =========================
+
+create table if not exists public.scores (
+  id          bigint generated always as identity primary key,
+  name        text    not null,
+  score       integer not null default 0,
+  created_at  timestamptz default now()
+);
+create index if not exists scores_score_idx on public.scores (score desc);
+
+alter table public.scores enable row level security;
+create policy scores_read   on public.scores for select to anon using (true);
+create policy scores_insert on public.scores for insert to anon with check (true);
+grant select, insert on public.scores to anon;
 
 -- ========================= SPONSOR ADS =========================
 
@@ -87,17 +101,14 @@ alter table public.code_redemptions enable row level security;
 grant execute on function public.redeem_code(text, text) to anon;
 
 -- ============================================================================
--- AFTER SETUP — quick reference (run any of these as needed):
---
---   Add a paid sponsor ($10 = 100 ad views):
+-- AFTER SETUP — quick reference:
+--   Add a sponsor ($10 = 100 views):
 --     insert into public.sponsors (name, tag, sub, color, paid)
 --     values ('GREEN LEAF DISPENSARY','NOW OPEN IN BASOM','TONAWANDA SENECA NATION - 21+','#37c66b',100);
---
---   Create a promo code (50 coins, 500 redemptions; leave max_uses out for unlimited):
+--   Create a code (50 coins, 500 uses; omit max_uses for unlimited):
 --     insert into public.promo_codes (code, coins, max_uses) values ('GREEN50', 50, 500);
---   QR link for it:  https://michaeltholland.github.io/agent-mode/?code=GREEN50
---
---   Proof an ad was shown / a code was used:
+--   QR link:  https://michaeltholland.github.io/agent-mode/?code=GREEN50
+--   Proof:
 --     select sponsor_name, count(*) impressions, max(shown_at) last from public.ad_impressions group by sponsor_name;
 --     select code, count(*) redemptions, max(redeemed_at) last from public.code_redemptions group by code;
 -- ============================================================================
