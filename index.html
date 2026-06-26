@@ -408,7 +408,7 @@ const FEEDBACK_EMAIL='laxtapper.feedback@gmail.com';
 const DIFF_NAMES=['ROOKIE','PRO','ELITE'];
 let gameMode='shootout';
 function startGame(m){ gameMode=m; triviaStart(); }
-const M_PLAY1={x:18,y:50,w:W-36,h:40}, M_PLAY2={x:18,y:94,w:W-36,h:40};
+const M_PLAY1={x:18,y:50,w:172,h:40}, M_PRACTICE={x:194,y:50,w:88,h:40}, M_PLAY2={x:18,y:94,w:W-36,h:40};
 const M_DIFF=[{x:22,y:158,w:84,h:30},{x:108,y:158,w:84,h:30},{x:194,y:158,w:84,h:30}];
 const GW=(W-36-12)/2;
 function gtile(c,row){ return {x:18+c*(GW+12), y:202+row*74, w:GW, h:66}; }
@@ -425,18 +425,20 @@ const COACH_BTN={x:18,y:418,w:W-36,h:24};        // featured "Coach's Favorite P
 const PYRAMID_BTN={x:18,y:446,w:W-36,h:24};      // featured "Pyramid of Lacrosse Success" banner
 const COACH_I=2+M_TILES.length;                  // keyboard-nav index for the coach banner
 const PYRAMID_I=COACH_I+1;                        // keyboard-nav index for the pyramid banner
-function menuActivate(i){ SFX.start(); if(i===0) startGame('shootout'); else if(i===1) startGame('field'); else if(i-2<M_TILES.length) M_TILES[i-2].go(); else if(i===COACH_I) state=S.COACH; else state=S.PYRAMID; }
+const PRACTICE_I=PYRAMID_I+1;                     // keyboard-nav index for the practice button
+function menuActivate(i){ SFX.start(); if(i===0) startGame('shootout'); else if(i===1) startGame('field'); else if(i-2<M_TILES.length) M_TILES[i-2].go(); else if(i===COACH_I) state=S.COACH; else if(i===PYRAMID_I) state=S.PYRAMID; else startGame('practice'); }
 function menuUpdate(){ let p; while((p=consumeTap())){
   if(updateReady && p.x>=0 && hit(p,UPDATE_BTN)){ doUpdate(); return; }
   if(p.x<0){ menuActivate(menuSel); return; }
   if(hit(p,M_PLAY1)){ menuSel=0; menuActivate(0); return; }
+  if(hit(p,M_PRACTICE)){ menuSel=PRACTICE_I; menuActivate(PRACTICE_I); return; }
   if(hit(p,M_PLAY2)){ menuSel=1; menuActivate(1); return; }
   for(let i=0;i<3;i++){ if(hit(p,M_DIFF[i])){ PROFILE.diff=i; profSave(); SFX.ui(); return; } }
   for(let i=0;i<M_TILES.length;i++){ if(hit(p,M_TILES[i].r)){ menuSel=i+2; menuActivate(i+2); return; } }
   if(hit(p,COACH_BTN)){ menuSel=COACH_I; menuActivate(COACH_I); return; }
   if(hit(p,PYRAMID_BTN)){ menuSel=PYRAMID_I; menuActivate(PYRAMID_I); return; }
 }
-  const n=4+M_TILES.length;
+  const n=5+M_TILES.length;
   if(keys.aimU){ menuSel=(menuSel+n-1)%n; keys.aimU=false; }
   if(keys.aimD){ menuSel=(menuSel+1)%n; keys.aimD=false; }
 }
@@ -469,7 +471,11 @@ function drawMenu(){
   const info='BEST '+HI.g1+'   LV '+curLevel()+'   COINS '+PROFILE.coins;
   drawText(info,(W-textW(info,1.15))/2,32,1.15,C.gold);
   drawText('v'+APP_VERSION,W-6-textW('v'+APP_VERSION,1),9,1,C.dgrey);
-  drawPlayBtn(M_PLAY1,'GOALIE SHOOTOUT','JUST YOU + THE KEEPER',0);
+  drawPlayBtn(M_PLAY1,'GOALIE SHOOTOUT','SCORE TILL 3 SAVES',0);
+  { const b=M_PRACTICE, sel=(menuSel===PRACTICE_I);   // secondary practice button (10 shots, no elimination)
+    tileBox(b.x,b.y,b.w,b.h, sel?'#1f6f9a':'#155772', '#37b6c6');
+    drawText('PRACTICE', b.x+(b.w-textW('PRACTICE',1.2))/2, b.y+8, 1.2, C.white);
+    drawText('10 SHOTS', b.x+(b.w-textW('10 SHOTS',0.95))/2, b.y+25, 0.95, '#bfeef6'); }
   drawPlayBtn(M_PLAY2,'FULL FIELD','DODGE THE DEFENDERS',1);
   drawText('GOALIE DIFFICULTY',(W-textW('GOALIE DIFFICULTY',1.1))/2,140,1.1,C.cream);
   for(let i=0;i<3;i++){ const s=M_DIFF[i], on=(PROFILE.diff||0)===i, col=[C.green,C.gold,C.red][i];
@@ -575,6 +581,7 @@ function resolveObstacles(x,y){
   return {x:clamp(x,SH_MINX,SH_MAXX), y:clamp(y,SH_MINY,SH_MAXY)};
 }
 function g1Init(){
+  G1.endless=(gameMode==='shootout'); G1.saves=0;   // shootout = endless survival (3 saves = out)
   G1.shots=10; G1.score=0; G1.goals=0;
   G1.aimX=AIM_CX; G1.aimY=AIM_CY;
   G1.gk={x:AIM_CX,idealX:AIM_CX,bw:60,bh:134,reach:14,lunge:0};
@@ -621,7 +628,11 @@ function g1Covered(tx,ty,gk){
   if(g1FiveHoleHit(tx,ty,gk)) return false;                 // ...or through the open legs
   return true;
 }
-function g1NextShot(){ if(G1.shots<=0){ endGame(G1.score); return; } G1.phase='aim'; G1.ball=null; G1.clock=SHOT_CLOCK; }
+function g1NextShot(){
+  if(G1.endless){ if(G1.saves>=3){ endGame(G1.score); return; } }   // survival: out after 3 saves
+  else if(G1.shots<=0){ endGame(G1.score); return; }                // practice/field: 10 shots
+  G1.phase='aim'; G1.ball=null; G1.clock=SHOT_CLOCK;
+}
 function g1Foul(){ G1.phase='foul'; G1.foulT=0; G1.ball=null; G1.streak=0; G1.shake=8; SFX.foul(); }
 function g1Fire(){
   const sx=G1.shooterX, sy=G1.shooterY-44, spd=stickSpd(), loose=shotLoose();
@@ -642,7 +653,7 @@ function g1Fire(){
 function g1Update(){
   if(G1.msgT>0) G1.msgT--; if(G1.tauntT>0) G1.tauntT--; if(G1.levelUp>0) G1.levelUp--; if(G1.callT>0) G1.callT--; G1.shake*=0.82;
   // difficulty ramps within a game (shot 1->10) AND climbs with your level; shootout plays a touch easier
-  const d=clamp(diffFactor() + (gameMode==='shootout'?-0.12:0) + (10-G1.shots)/9, 0, 1.6);
+  const d=clamp(diffFactor() + (gameMode==='field'?0:-0.12) + (10-G1.shots)/9, 0, 1.6);
   G1.gk.reach=11+d*6;                                  // easier coverage (more open net)
   const openLen=Math.round((FH_OPEN+24)-d*16);         // five hole open longer: 104 -> 88 frames
   G1.fhT=(G1.fhT+1)%(openLen+FH_SHUT); G1.fhOpen=G1.fhT<openLen;
@@ -719,6 +730,7 @@ function g1Update(){
         b.bounce=true;   // sails on past the net
       } else if(g1Covered(b.tx,b.ty,gk)){
         G1.msg='SAVE!'; G1.msgC=C.red; G1.msgT=64; G1.shake=6; SFX.save(); G1.streak=0;
+        if(G1.endless){ G1.saves++; if(G1.saves>=3){ G1.msg='3 SAVES - GAME OVER!'; G1.msgT=90; } else G1.msg='SAVE! '+G1.saves+'/3'; }
         G1.taunt=TAUNTS[(Math.random()*TAUNTS.length)|0]; G1.tauntT=60;   // keeper trash talk
         b.vx=-b.vx*0.3; b.vy=2.6; b.bounce=true;
       } else {
@@ -825,8 +837,10 @@ function g1Draw(){
   ctx.fillStyle='#3a2030'; ctx.fillRect(EXIT_BTN.x,EXIT_BTN.y,EXIT_BTN.w,EXIT_BTN.h); ctx.fillStyle=C.red; ctx.fillRect(EXIT_BTN.x,EXIT_BTN.y,EXIT_BTN.w,2);
   drawText('EXIT',EXIT_BTN.x+(EXIT_BTN.w-textW('EXIT',1.2))/2,EXIT_BTN.y+7,1.2,C.cream);
   drawText('SCORE',56,3,1.2,C.grey); drawText(''+G1.score,56,13,2,C.white);
-  drawText('GOALS',W/2-18,3,1.2,C.grey); drawText(G1.goals+'/10',W/2-18,13,2,C.green);
-  drawText('SHOTS',W-62,3,1.2,C.grey); drawText(''+G1.shots,W-34,13,2,C.yellow);
+  drawText('GOALS',W/2-18,3,1.2,C.grey); drawText(G1.endless?(''+G1.goals):(G1.goals+'/10'),W/2-18,13,2,C.green);
+  if(G1.endless){ drawText('SAVES',W-66,3,1.2,C.grey);
+    for(let i=0;i<3;i++){ ctx.fillStyle=i<G1.saves?C.red:'rgba(255,255,255,0.22)'; ctx.fillRect(W-64+i*11,14,8,8); } }
+  else { drawText('SHOTS',W-62,3,1.2,C.grey); drawText(''+G1.shots,W-34,13,2,C.yellow); }
   // shot clock — depleting bar under the HUD, flashes red in the final 1.25s
   if(!G1.tut && (G1.phase==='aim'||G1.phase==='fly')){
     const frac=clamp(G1.clock/SHOT_CLOCK,0,1), cw=W-12;
@@ -842,10 +856,11 @@ function g1Draw(){
   if(G1.behind && G1.phase==='aim' && !G1.tut) textCS('BEHIND THE NET - COME AROUND',H-150,1.3,frame%12<7?C.red:C.cream,C.black);
   if(G1.levelUp>0) textCS('LEVEL '+(PROFILE.level)+'!',150,4,(frame%6<3?C.gold:C.yellow),C.black);
   if(G1.phase==='foul'){ textCS('FOUL!',150,5,(frame%8<4?C.red:C.yellow),C.black); textCS('CREASE VIOLATION',188,1.3,C.cream,C.black); textCS('TURNOVER - SHOT LOST',208,1.2,C.grey,C.black); }
-  if(G1.tut){ const title=gameMode==='field'?'FULL FIELD':'SHOOTOUT';
+  if(G1.tut){ const title=gameMode==='field'?'FULL FIELD':(G1.endless?'GOALIE SHOOTOUT':'PRACTICE');
     const lines=['MOVE = LEFT STICK   AIM = RIGHT','HIT THE GOLD TARGET (IT MOVES)','CLEAR 4 CORNERS + 5 HOLE = LEVEL'];
     if(gameMode==='field') lines.push('RED DEFENDERS CAN BLOCK - WEAVE','CARRY BEHIND THE NET TO DODGE');
     else lines.push('AIM TURF TO BOUNCE - NO CREASE!');
+    if(G1.endless) lines.push('SCORE FOREVER - 3 SAVES = OUT!');
     tutorial(title,lines); }
 }
 
@@ -900,8 +915,8 @@ function drawToasts(){
   if(toastT>150){ toasts.shift(); toastT=0; }
 }
 const SHARE_URL='https://michaeltholland.github.io/agent-mode/';
-const APP_VERSION='2.8';     // bump every deploy; the update check compares against the live file
-const WHATS_NEW='PYRAMID FACTS ADDED TO THE QUIZ';   // one-line highlight shown on the update prompt
+const APP_VERSION='2.9';     // bump every deploy; the update check compares against the live file
+const WHATS_NEW='ENDLESS GOALIE MODE - 3 SAVES & OUT';   // one-line highlight shown on the update prompt
 let updateReady=false, updateNote='';
 function updateCheck(){
   if(typeof fetch!=='function') return;
