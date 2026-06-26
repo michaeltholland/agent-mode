@@ -398,7 +398,7 @@ function drawJoy(j,s,label,active,accent){
 }
 
 // ====================== STATE ======================
-const S={MENU:0,HELP:1,G1:2,OVER:3,SURVEY:4,ENTRY:5,LB:6,BADGES:7,LOCKER:8,WELCOME:9,TRIVIA:10};
+const S={MENU:0,HELP:1,G1:2,OVER:3,SURVEY:4,ENTRY:5,LB:6,BADGES:7,LOCKER:8,WELCOME:9,TRIVIA:10,COACH:11};
 let welcomed=false; try{ welcomed=!!localStorage.getItem('lax4_welcome'); }catch(e){}
 let state=welcomed?S.MENU:S.WELCOME, frame=0, menuSel=0;
 // where the FEEDBACK / survey emails go (a throwaway address, confirmed by owner)
@@ -421,7 +421,9 @@ const M_TILES=[
   {label:'SHARE',       icon:'share',  r:gtile(1,2), go:()=>{ shareGame(0); }}
 ];
 const UPDATE_BTN={x:40,y:H-44,w:W-80,h:22};
-function menuActivate(i){ SFX.start(); if(i===0) startGame('shootout'); else if(i===1) startGame('field'); else M_TILES[i-2].go(); }
+const COACH_BTN={x:18,y:422,w:W-36,h:26};        // featured "Coach's Favorite Player" banner
+const COACH_I=2+M_TILES.length;                  // keyboard-nav index for the coach banner
+function menuActivate(i){ SFX.start(); if(i===0) startGame('shootout'); else if(i===1) startGame('field'); else if(i-2<M_TILES.length) M_TILES[i-2].go(); else state=S.COACH; }
 function menuUpdate(){ let p; while((p=consumeTap())){
   if(updateReady && p.x>=0 && hit(p,UPDATE_BTN)){ doUpdate(); return; }
   if(p.x<0){ menuActivate(menuSel); return; }
@@ -429,8 +431,9 @@ function menuUpdate(){ let p; while((p=consumeTap())){
   if(hit(p,M_PLAY2)){ menuSel=1; menuActivate(1); return; }
   for(let i=0;i<3;i++){ if(hit(p,M_DIFF[i])){ PROFILE.diff=i; profSave(); SFX.ui(); return; } }
   for(let i=0;i<M_TILES.length;i++){ if(hit(p,M_TILES[i].r)){ menuSel=i+2; menuActivate(i+2); return; } }
+  if(hit(p,COACH_BTN)){ menuSel=COACH_I; menuActivate(COACH_I); return; }
 }
-  const n=2+M_TILES.length;
+  const n=3+M_TILES.length;
   if(keys.aimU){ menuSel=(menuSel+n-1)%n; keys.aimU=false; }
   if(keys.aimD){ menuSel=(menuSel+1)%n; keys.aimD=false; }
 }
@@ -475,6 +478,12 @@ function drawMenu(){
     drawText(t.label, r.x+(r.w-textW(t.label,1.15))/2, r.y+r.h-17, 1.15, C.cream);
     if(t.label==='SHARE') shareBtn={x:r.x,y:r.y,w:r.w,h:r.h,score:0};
   }
+  // featured COACH'S FAVORITE PLAYER banner
+  { const b=COACH_BTN, sel=(menuSel===COACH_I);
+    tileBox(b.x,b.y,b.w,b.h, sel?'rgba(70,54,18,0.96)':'rgba(46,36,14,0.92)', C.gold);
+    const cl="COACH'S FAVORITE PLAYER", clw=textW(cl,1.05), clx=b.x+(b.w-clw)/2;
+    drawText(cl, clx, b.y+7, 1.05, C.gold);
+    tStar(clx-11, b.y+13, 5, C.gold); tStar(clx+clw+11, b.y+13, 5, C.gold); }
   if(updateReady){ const b=UPDATE_BTN, fl=frame%20<12;
     tileBox(b.x,b.y,b.w,b.h, fl?'#1f9a54':'#15723e', C.white);
     const tt='! UPDATE AVAILABLE - TAP'; drawText(tt,b.x+(b.w-textW(tt,1.1))/2,b.y+6,1.1,C.white);
@@ -873,8 +882,8 @@ function drawToasts(){
   if(toastT>150){ toasts.shift(); toastT=0; }
 }
 const SHARE_URL='https://michaeltholland.github.io/agent-mode/';
-const APP_VERSION='2.2';     // bump every deploy; the update check compares against the live file
-const WHATS_NEW='NEW EASY-TO-USE MAIN MENU';   // one-line highlight shown on the update prompt
+const APP_VERSION='2.3';     // bump every deploy; the update check compares against the live file
+const WHATS_NEW="COACH'S FAVORITE PLAYER GUIDE";   // one-line highlight shown on the update prompt
 let updateReady=false, updateNote='';
 function updateCheck(){
   if(typeof fetch!=='function') return;
@@ -1153,6 +1162,35 @@ function drawBadges(){
   textCS('TAP TO RETURN',H-20,1,C.cream,C.black);
 }
 
+// ====================== COACH'S FAVORITE PLAYER (info screen) ======================
+const COACH_TRAITS=[
+  {name:'COACHABLE',   desc:'Takes feedback, adjusts, keeps learning.'},
+  {name:'RELIABLE',    desc:'Shows up on time and works every day.'},
+  {name:'TEAM-FIRST',  desc:'Lifts teammates before personal stats.'},
+  {name:'WORK ETHIC',  desc:'Full speed on every drill and rep.'},
+  {name:'POSITIVE',    desc:'Brings energy and handles pressure.'},
+  {name:'LACROSSE IQ', desc:'Reads the game, makes smart choices.'},
+  {name:'ACCOUNTABLE', desc:'Owns mistakes and gets better.'},
+  {name:'LEADERSHIP',  desc:'Leads by example, sets the standard.'},
+  {name:'COMPETITIVE', desc:'Fights for every ball to the whistle.'},
+  {name:'CONSISTENCY', desc:'Steady effort the whole season long.'}
+];
+function coachUpdate(){ let p; while((p=consumeTap())){ SFX.ui(); state=S.MENU; return; } }
+function drawCoach(){
+  vgrad(0,0,W,H,'#10204a','#040814');
+  ctx.fillStyle=C.panelHi; ctx.fillRect(12,12,80,36); ctx.fillStyle=C.dgrey; ctx.fillRect(12,12,80,3);
+  glyph('LT',20,22,3,C.cream); drawText('BACK',36,23,2,C.cream);
+  textCS("COACH'S FAVORITE PLAYER",54,1.6,C.gold,C.black);
+  textC('10 THINGS THAT GET YOU ON THE FIELD',78,0.95,C.green);
+  let y=98; for(let i=0;i<COACH_TRAITS.length;i++){ const t=COACH_TRAITS[i];
+    drawText((i+1<10?'0':'')+(i+1), 14, y+1, 1.2, C.gold);
+    drawText(t.name, 42, y, 1.15, C.yellow);
+    drawText(t.desc, 42, y+13, 0.92, C.cream);
+    y+=41;
+  }
+  textCS('TAP TO RETURN',H-18,1,C.cream,C.black);
+}
+
 // ====================== LOCKER ROOM (gear + upgrades) ======================
 let lockerTab=0, lockerPart=0;
 const PARTS=[
@@ -1275,6 +1313,7 @@ function frameStep(){
   else if(state===S.ENTRY){ entryUpdate(); drawEntry(); }
   else if(state===S.LB){ lbUpdate(); drawLeaderboard(); }
   else if(state===S.BADGES){ badgesUpdate(); drawBadges(); }
+  else if(state===S.COACH){ coachUpdate(); drawCoach(); }
   drawToasts();
   ctx.globalAlpha=0.05; ctx.fillStyle='#000'; for(let y=0;y<H;y+=3) ctx.fillRect(0,y,W,1); ctx.globalAlpha=1;
 }
