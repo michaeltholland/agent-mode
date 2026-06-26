@@ -888,8 +888,8 @@ function drawToasts(){
   if(toastT>150){ toasts.shift(); toastT=0; }
 }
 const SHARE_URL='https://michaeltholland.github.io/agent-mode/';
-const APP_VERSION='2.4';     // bump every deploy; the update check compares against the live file
-const WHATS_NEW='TARGETS NOW BOUNCE AROUND THE CAGE';   // one-line highlight shown on the update prompt
+const APP_VERSION='2.5';     // bump every deploy; the update check compares against the live file
+const WHATS_NEW='LEARN-THEN-QUIZ LACROSSE FACTS';   // one-line highlight shown on the update prompt
 let updateReady=false, updateNote='';
 function updateCheck(){
   if(typeof fetch!=='function') return;
@@ -1112,15 +1112,53 @@ const TRIVIA_Q=[
   {q:'A BOUNCE SHOT SKIPS OFF THE...',opts:['TURF','CROSSBAR','GOALIE'],ans:0,fact:'THE TURF - A SKIP SHOT IS HARD TO READ.'},
   {q:'GREAT SHOOTERS SHOOT AT THE RIGHT...',opts:['MOMENT','PRICE','ANGLE ONLY'],ans:0,fact:'THE RIGHT MOMENT - WHEN THE LANE OPENS UP.'}
 ];
-let trivia={q:null,order:[0,1,2],correct:0,picked:-1,answered:false};
-let triviaSeen=false;   // once per session: only the first game of a session asks
+let trivia={mode:'quiz',q:null,order:[0,1,2],correct:0,picked:-1,answered:false};
+// ---- TEACH-THEN-QUIZ: show each fact as info 3x (in rotation, never twice running),
+//      then flip it to a quiz question. View counts are saved on the device. ----
+const COACH_Q=[
+  {q:'A COACHABLE PLAYER...',opts:['TAKES FEEDBACK & ADJUSTS','TUNES THE COACH OUT','DOES HIS OWN THING'],ans:0,fact:'COACHABLE - TAKES FEEDBACK, ADJUSTS, KEEPS LEARNING.'},
+  {q:'A RELIABLE PLAYER...',opts:['SHOWS UP AND WORKS DAILY','SKIPS THE HARD DAYS','COASTS IN PRACTICE'],ans:0,fact:'RELIABLE - SHOWS UP ON TIME AND WORKS EVERY DAY.'},
+  {q:'A TEAM-FIRST PLAYER PUTS...',opts:['THE TEAM BEFORE STATS','STATS BEFORE THE WIN','HIMSELF FIRST'],ans:0,fact:'TEAM-FIRST - LIFTS TEAMMATES BEFORE PERSONAL STATS.'},
+  {q:'STRONG WORK ETHIC MEANS...',opts:['FULL SPEED EVERY REP','TAKING PLAYS OFF','SAVING ENERGY'],ans:0,fact:'WORK ETHIC - FULL SPEED ON EVERY DRILL AND REP.'},
+  {q:'A POSITIVE PLAYER BRINGS...',opts:['ENERGY UNDER PRESSURE','COMPLAINTS','BAD BODY LANGUAGE'],ans:0,fact:'POSITIVE - BRINGS ENERGY AND HANDLES PRESSURE.'},
+  {q:'HIGH LACROSSE IQ MEANS YOU...',opts:['READ THE GAME & DECIDE','FORCE EVERY PLAY','STARE AT THE BALL'],ans:0,fact:'LACROSSE IQ - READS THE GAME, MAKES SMART CHOICES.'},
+  {q:'AN ACCOUNTABLE PLAYER...',opts:['OWNS MISTAKES & IMPROVES','BLAMES OTHERS','HIDES ERRORS'],ans:0,fact:'ACCOUNTABLE - OWNS MISTAKES AND GETS BETTER.'},
+  {q:'LEADERSHIP BY EXAMPLE MEANS...',opts:['SET THE STANDARD DAILY','TALK, DONT DO','LEAD ONLY IN GAMES'],ans:0,fact:'LEADERSHIP - LEADS BY EXAMPLE, SETS THE STANDARD.'},
+  {q:'COMPETITIVE SPIRIT MEANS YOU...',opts:['FIGHT TO THE WHISTLE','QUIT WHEN DOWN','COAST WHEN AHEAD'],ans:0,fact:'COMPETITIVE - FIGHTS FOR EVERY BALL TO THE WHISTLE.'},
+  {q:'CONSISTENCY MEANS...',opts:['STEADY EFFORT ALL SEASON','HOT AND COLD STREAKS','TRY ONLY ON GAME DAY'],ans:0,fact:'CONSISTENCY - STEADY EFFORT THE WHOLE SEASON LONG.'}
+];
+const TEACH_POOL=TRIVIA_Q.map((it,i)=>({q:it.q,opts:it.opts,ans:it.ans,fact:it.fact,key:'t'+i,topic:'LACROSSE FACT'}))
+  .concat(COACH_Q.map((it,i)=>({q:it.q,opts:it.opts,ans:it.ans,fact:it.fact,key:'c'+i,topic:"COACH'S FAVORITE PLAYER"})));
+let teachState={}; try{ teachState=JSON.parse(localStorage.getItem('lax4_teach')||'{}')||{}; }catch(e){ teachState={}; }
+function tget(k){ if(!teachState[k]) teachState[k]={n:0,qz:0}; return teachState[k]; }
+function teachSave(){ try{ localStorage.setItem('lax4_teach',JSON.stringify(teachState)); }catch(e){} }
+let teachLastKey=null;
+function teachPick(){
+  // a fact seen 3x but not yet quizzed -> quiz it now
+  let due=TEACH_POOL.filter(it=>tget(it.key).n>=3 && !tget(it.key).qz && it.key!==teachLastKey);
+  if(!due.length) due=TEACH_POOL.filter(it=>tget(it.key).n>=3 && !tget(it.key).qz);
+  if(due.length) return {item:due[0], mode:'quiz'};
+  // otherwise teach the least-seen facts, in rotation, never the same one twice running
+  let teach=TEACH_POOL.filter(it=>tget(it.key).n<3 && it.key!==teachLastKey);
+  if(!teach.length) teach=TEACH_POOL.filter(it=>tget(it.key).n<3);
+  if(!teach.length) return null;   // every fact learned on this device -> straight to play
+  const minN=Math.min(...teach.map(it=>tget(it.key).n));
+  const cand=teach.filter(it=>tget(it.key).n===minN);
+  return {item:cand[(Math.random()*cand.length)|0], mode:'teach'};
+}
 function triviaStart(){
-  if(triviaSeen){ g1Init(); state=S.G1; return; }   // already asked this session - straight to play
-  triviaSeen=true;
-  const q=TRIVIA_Q[(Math.random()*TRIVIA_Q.length)|0];
-  const order=q.opts.map((_,i)=>i);
-  for(let i=order.length-1;i>0;i--){ const j=(Math.random()*(i+1))|0; const t=order[i]; order[i]=order[j]; order[j]=t; }
-  trivia={q:q, order:order, correct:order.indexOf(q.ans), picked:-1, answered:false};
+  const pick=teachPick();
+  if(!pick){ g1Init(); state=S.G1; return; }   // all facts learned -> straight to play
+  const it=pick.item; teachLastKey=it.key;
+  if(pick.mode==='teach'){
+    const rec=tget(it.key); rec.n++; teachSave();
+    PROFILE.coins+=2; profSave();               // small study bonus for reading
+    trivia={mode:'teach', q:it, answered:false};
+  } else {
+    const order=it.opts.map((_,i)=>i);
+    for(let i=order.length-1;i>0;i--){ const j=(Math.random()*(i+1))|0; const t=order[i]; order[i]=order[j]; order[j]=t; }
+    trivia={mode:'quiz', q:it, order:order, correct:order.indexOf(it.ans), picked:-1, answered:false};
+  }
   state=S.TRIVIA;
 }
 function wrapText(str,maxC){ const w=(''+str).split(' '), out=[]; let cur='';
@@ -1128,14 +1166,27 @@ function wrapText(str,maxC){ const w=(''+str).split(' '), out=[]; let cur='';
   if(cur) out.push(cur); return out; }
 function triOpt(i){ return {x:24,y:204+i*52,w:W-48,h:46}; }
 function triviaUpdate(){ let p; while((p=consumeTap())){
+  if(trivia.mode==='teach'){ g1Init(); state=S.G1; return; }   // tap moves on to play
   if(!trivia.answered){
     for(let i=0;i<trivia.order.length;i++){ if(hit(p,triOpt(i))){ trivia.picked=i; trivia.answered=true;
-      if(i===trivia.correct){ PROFILE.coins+=TRIVIA_REWARD; profSave(); SFX.big(); } else SFX.save(); return; } }
+      const rec=tget(trivia.q.key);
+      if(i===trivia.correct){ rec.qz=1; teachSave(); PROFILE.coins+=TRIVIA_REWARD; profSave(); SFX.big(); }
+      else { rec.n=2; teachSave(); SFX.save(); }   // missed -> teach it once more, then re-quiz
+      return; } }
   } else { g1Init(); state=S.G1; return; }   // any tap -> play
 }}
 function drawTrivia(){
   vgrad(0,0,W,H,'#10204a','#040814');
-  textCS('LACROSSE TRIVIA',44,3,C.gold,C.black);
+  if(trivia.mode==='teach'){
+    textCS('DID YOU KNOW?',44,3,C.gold,C.black);
+    textC(trivia.q.topic,80,1.2,C.green);
+    const fl=wrapText(trivia.q.fact,22); let fy=152; for(const l of fl){ textCS(l,fy,1.8,C.cream,C.black); fy+=30; }
+    textCS('+2 COINS FOR STUDYING',308,1.4,C.gold,C.black);
+    textC('REMEMBER IT - A QUIZ IS COMING!',338,1.1,C.yellow);
+    if(frame%24<16) textCS('TAP TO PLAY BALL',H-26,1.6,C.yellow,C.black);
+    return;
+  }
+  textCS('POP QUIZ!',44,3,C.gold,C.black);
   textC(trivia.answered?'':'ANSWER RIGHT = +'+TRIVIA_REWARD+' COINS',74,1.3,C.green);
   const ql=wrapText(trivia.q.q,26); let qy=104; for(const l of ql){ textCS(l,qy,1.5,C.cream,C.black); qy+=22; }
   for(let i=0;i<trivia.order.length;i++){ const r=triOpt(i), label=trivia.q.opts[trivia.order[i]];
