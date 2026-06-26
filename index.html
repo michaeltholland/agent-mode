@@ -403,25 +403,29 @@ let welcomed=false; try{ welcomed=!!localStorage.getItem('lax4_welcome'); }catch
 // ---- age gate + sponsor ads (intended sponsors: licensed dispensaries, Tonawanda Seneca Nation, Basom NY) ----
 const AGE_MIN=21;   // NY legal adult-use age; only 21+ see sponsor messages
 let ageOk=null; try{ const a=localStorage.getItem('lax4_age'); if(a!=null) ageOk=(a==='1'); }catch(e){}
-// drop real sponsor creative in here; empty the array to disable ads entirely
+// drop real paid sponsor creative in here; the invite card stays as the last entry.
+// ads show RANDOMLY at the start of a play (21+ only) - a sponsor buys 100 of these impressions for $10.
 const SPONSORS=[
-  {name:'YOUR AD HERE', tag:'SPONSOR THIS GAME', sub:'LICENSED DISPENSARIES - TONAWANDA SENECA NATION, BASOM NY', col:'#37c66b'}
+  {name:'SPONSOR THIS GAME', tag:'$10 = 100 ADS', sub:'YOUR AD SHOWN RANDOMLY DURING PLAY TO 21+ FANS. BOOK YOUR SPOT TODAY.', col:'#ffd23f', invite:true}
 ];
-let adShown=false, ad={idx:0,t:0};
-function gotoStart(){   // after welcome/age: show one sponsor (once per session, 21+ only), then the top 10
-  if(ageOk && !adShown && SPONSORS.length){ adShown=true; ad={idx:(Math.random()*SPONSORS.length)|0,t:0}; state=S.AD; }
-  else state=S.INTRO;
-}
-function startState(){ if(!welcomed) return S.WELCOME; if(ageOk===null) return S.AGE;
-  if(ageOk && SPONSORS.length){ adShown=true; ad={idx:(Math.random()*SPONSORS.length)|0,t:0}; return S.AD; } return S.INTRO; }
+const AD_CHANCE=0.34;   // roughly 1 in 3 plays shows a sponsor (tunable)
+let ad={idx:0,t:0,then:null};
+function gotoStart(){ state=S.INTRO; }   // after welcome/age -> the top 10
+function startState(){ if(!welcomed) return S.WELCOME; if(ageOk===null) return S.AGE; return S.INTRO; }
 let state=startState(), frame=0, menuSel=0;
+// show a random sponsor before some plays (21+ only), then run fn; otherwise run fn straight away
+function maybeAdThen(fn){
+  if(ageOk && SPONSORS.length && Math.random()<AD_CHANCE){ ad={idx:(Math.random()*SPONSORS.length)|0, t:0, then:fn}; state=S.AD; }
+  else fn();
+}
+function playStart(){ maybeAdThen(triviaStart); }
 // where the FEEDBACK / survey emails go (a throwaway address, confirmed by owner)
 const FEEDBACK_EMAIL='laxtapper.feedback@gmail.com';
 
 // ====================== MENU (Control-Center style tiles) ======================
 const DIFF_NAMES=['ROOKIE','PRO','ELITE'];
 let gameMode='shootout';
-function startGame(m){ gameMode=m; triviaStart(); }
+function startGame(m){ gameMode=m; playStart(); }
 const M_PLAY1={x:18,y:50,w:172,h:40}, M_PRACTICE={x:194,y:50,w:88,h:40}, M_PLAY2={x:18,y:94,w:W-36,h:40};
 const M_DIFF=[{x:22,y:158,w:84,h:30},{x:108,y:158,w:84,h:30},{x:194,y:158,w:84,h:30}];
 const GW=(W-36-12)/2;
@@ -935,8 +939,8 @@ function drawToasts(){
   if(toastT>150){ toasts.shift(); toastT=0; }
 }
 const SHARE_URL='https://michaeltholland.github.io/agent-mode/';
-const APP_VERSION='3.1';     // bump every deploy; the update check compares against the live file
-const WHATS_NEW='NEW-BEST CELEBRATION + SPONSOR SLOT';   // one-line highlight shown on the update prompt
+const APP_VERSION='3.2';     // bump every deploy; the update check compares against the live file
+const WHATS_NEW='SPONSOR THIS GAME - $10 = 100 ADS';   // one-line highlight shown on the update prompt
 let updateReady=false, updateNote='';
 function updateCheck(){
   if(typeof fetch!=='function') return;
@@ -973,7 +977,7 @@ const OV_PLAY={x:24,y:H-168,w:HW,h:48}, OV_MENU={x:36+HW,y:H-168,w:HW,h:48};
 const OV_LB={x:24,y:H-110,w:HW,h:42}, OV_FB={x:36+HW,y:H-110,w:HW,h:42};
 const OV_SHARE={x:24,y:H-56,w:W-48,h:40};
 function overUpdate(){ over.t++; updateParts(); let p; while((p=consumeTap())){ if(over.t<=20) break;
-  if(hit(p,OV_PLAY)){ triviaStart(); return; }
+  if(hit(p,OV_PLAY)){ playStart(); return; }
   if(hit(p,OV_SHARE)){ shareGame(over.score); SFX.ui(); return; }
   if(hit(p,OV_LB)){ lbOpen('GAME'); return; }
   if(hit(p,OV_FB)){ surveyOpen('OVER'); return; }
@@ -1036,7 +1040,7 @@ const LB_PER=9;
 const LB_PREV={x:24,y:326,w:62,h:30}, LB_NEXT={x:W-86,y:326,w:62,h:30};
 function lbPages(){ return Math.max(1, Math.ceil(lbShownCount()/LB_PER)); }
 function lbUpdate(){ if(lb.page>=lbPages()) lb.page=lbPages()-1; let p; while((p=consumeTap())){
-  if(hit(p,OV_PLAY)){ triviaStart(); return; }
+  if(hit(p,OV_PLAY)){ playStart(); return; }
   if(hit(p,OV_SHARE)){ shareGame(HI.g1); SFX.ui(); return; }
   if(hit(p,LB_PREV)&&lb.page>0){ lb.page--; SFX.ui(); return; }
   if(hit(p,LB_NEXT)&&lb.page<lbPages()-1){ lb.page++; SFX.ui(); return; }
@@ -1141,18 +1145,18 @@ function drawAge(){
   tileBox(AGE_NO.x,AGE_NO.y,AGE_NO.w,AGE_NO.h,'rgba(22,30,52,0.92)','rgba(255,255,255,0.25)');
   textCS('NO',AGE_NO.y+12,1.6,C.cream,C.black);
 }
-// ====================== SPONSORED AD (one per session, 21+ only) ======================
+// ====================== SPONSOR SLOT (random per play, 21+ only) ======================
 const AD_MIN=180;   // ~3s before you can continue
-function adUpdate(){ ad.t++; let p; while((p=consumeTap())){ if(ad.t<AD_MIN) break; SFX.ui(); state=S.INTRO; return; } }
+function adUpdate(){ ad.t++; let p; while((p=consumeTap())){ if(ad.t<AD_MIN) break; SFX.ui(); const fn=ad.then; ad.then=null; if(fn) fn(); else state=S.INTRO; return; } }
 function drawAd(){
   const s=SPONSORS[ad.idx]||SPONSORS[0]||{name:'SPONSOR',tag:'',sub:'',col:C.green};
   vgrad(0,0,W,H,'#0a1430','#050a18');
-  textCS('SPONSORED',40,1.5,C.gold,C.black);
+  textCS(s.invite?'SPONSOR SPOT':'SPONSORED',40,1.5,C.gold,C.black);
   tileBox(24,78,W-48,300,'rgba(20,30,52,0.96)',s.col||C.green);
-  textCS(s.name,150,2.6,s.col||C.green,C.black);
-  if(s.tag) textCS(s.tag,200,1.6,C.white,C.black);
+  textCS(s.name,148,2.4,s.col||C.green,C.black);
+  if(s.tag) textCS(s.tag,196,2,C.white,C.black);
   const sub=wrapText(s.sub||'',26); let y=242; for(const l of sub){ textC(l,y,1.1,C.cream); y+=20; }
-  textCS(AGE_MIN+'+   -   ENJOY RESPONSIBLY',352,1.1,C.gold,C.black);
+  textCS(s.invite?'CONTACT TO BOOK YOUR AD':(AGE_MIN+'+   -   ENJOY RESPONSIBLY'),352,1.1,C.gold,C.black);
   if(ad.t<AD_MIN) textC('CONTINUE IN '+Math.max(1,Math.ceil((AD_MIN-ad.t)/60))+'...',H-40,1.4,C.grey);
   else if(frame%24<16) textCS('TAP TO CONTINUE',H-40,1.7,C.green,C.black);
 }
