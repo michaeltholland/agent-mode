@@ -900,8 +900,8 @@ function drawToasts(){
   if(toastT>150){ toasts.shift(); toastT=0; }
 }
 const SHARE_URL='https://michaeltholland.github.io/agent-mode/';
-const APP_VERSION='2.7';     // bump every deploy; the update check compares against the live file
-const WHATS_NEW='PYRAMID OF LACROSSE SUCCESS GUIDE';   // one-line highlight shown on the update prompt
+const APP_VERSION='2.8';     // bump every deploy; the update check compares against the live file
+const WHATS_NEW='PYRAMID FACTS ADDED TO THE QUIZ';   // one-line highlight shown on the update prompt
 let updateReady=false, updateNote='';
 function updateCheck(){
   if(typeof fetch!=='function') return;
@@ -1156,8 +1156,20 @@ const COACH_Q=[
   {q:'COMPETITIVE SPIRIT MEANS YOU...',opts:['FIGHT TO THE WHISTLE','QUIT WHEN DOWN','COAST WHEN AHEAD'],ans:0,fact:'COMPETITIVE - FIGHTS FOR EVERY BALL TO THE WHISTLE.'},
   {q:'CONSISTENCY MEANS...',opts:['STEADY EFFORT ALL SEASON','HOT AND COLD STREAKS','TRY ONLY ON GAME DAY'],ans:0,fact:'CONSISTENCY - STEADY EFFORT THE WHOLE SEASON LONG.'}
 ];
+// pyramid of lacrosse success (8 layers) - content credit: Global Lacrosse
+const PYRAMID_Q=[
+  {q:'THE BASE OF THE LACROSSE PYRAMID IS...',opts:['FUNDAMENTALS','EXCELLENCE','TROPHIES'],ans:0,fact:'FUNDAMENTALS - PASSING, CATCHING, GROUND BALLS, FOOTWORK.'},
+  {q:'GOOD HABITS ARE BUILT THROUGH...',opts:['CONSISTENCY','SHORTCUTS','LUCK'],ans:0,fact:'CONSISTENCY - PRACTICE WITH PURPOSE, BUILD HABITS DAILY.'},
+  {q:'SPEED AND ENDURANCE COME FROM...',opts:['CONDITIONING','RESTING','COMPLAINING'],ans:0,fact:'CONDITIONING - SPEED, AGILITY, ENDURANCE, RECOVER WELL.'},
+  {q:'READING THE FIELD IS YOUR...',opts:['LACROSSE IQ','HIGHLIGHT REEL','EXCUSE'],ans:0,fact:'LACROSSE IQ - READ THE FIELD, MAKE QUICK SMART DECISIONS.'},
+  {q:'CALLING SLIDES AND CUTTERS IS...',opts:['COMMUNICATION','SHOWING OFF','OPTIONAL'],ans:0,fact:'COMMUNICATION - TALK, CALL SLIDES, LEAD WITH YOUR VOICE.'},
+  {q:'PLAYING FOR THE TEAM OVER STATS IS...',opts:['TEAMWORK','SELFISH','BORING'],ans:0,fact:'TEAMWORK - TRUST TEAMMATES, TEAM OVER PERSONAL STATS.'},
+  {q:'STAYING COMPOSED UNDER PRESSURE IS...',opts:['MENTAL TOUGHNESS','LUCK','IMPOSSIBLE'],ans:0,fact:'MENTAL TOUGHNESS - COMPOSED, COMPETE EVERY POSSESSION.'},
+  {q:'THE PEAK OF THE PYRAMID IS...',opts:['EXCELLENCE','FUNDAMENTALS','THE BENCH'],ans:0,fact:'EXCELLENCE - HIGH-LEVEL PLAY, LEADERSHIP, WINNING IMPACT.'}
+];
 const TEACH_POOL=TRIVIA_Q.map((it,i)=>({q:it.q,opts:it.opts,ans:it.ans,fact:it.fact,key:'t'+i,topic:'LACROSSE FACT'}))
-  .concat(COACH_Q.map((it,i)=>({q:it.q,opts:it.opts,ans:it.ans,fact:it.fact,key:'c'+i,topic:"COACH'S FAVORITE PLAYER"})));
+  .concat(COACH_Q.map((it,i)=>({q:it.q,opts:it.opts,ans:it.ans,fact:it.fact,key:'c'+i,topic:"COACH'S FAVORITE PLAYER"})))
+  .concat(PYRAMID_Q.map((it,i)=>({q:it.q,opts:it.opts,ans:it.ans,fact:it.fact,key:'p'+i,topic:'PYRAMID OF SUCCESS - GLOBAL LACROSSE'})));
 let teachState={}; try{ teachState=JSON.parse(localStorage.getItem('lax4_teach')||'{}')||{}; }catch(e){ teachState={}; }
 function tget(k){ if(!teachState[k]) teachState[k]={n:0,qz:0}; return teachState[k]; }
 function teachSave(){ try{ localStorage.setItem('lax4_teach',JSON.stringify(teachState)); }catch(e){} }
