@@ -428,11 +428,11 @@ function drawJoy(j,s,label,active,accent){
 }
 
 // ====================== STATE ======================
-const S={MENU:0,HELP:1,G1:2,OVER:3,SURVEY:4,ENTRY:5,LB:6,BADGES:7,LOCKER:8,WELCOME:9,TRIVIA:10,COACH:11,INTRO:12,PYRAMID:13,AGE:14,AD:15,REWARD:16};
+const S={MENU:0,HELP:1,G1:2,OVER:3,SURVEY:4,ENTRY:5,LB:6,BADGES:7,LOCKER:8,WELCOME:9,TRIVIA:10,COACH:11,INTRO:12,PYRAMID:13,AGE:14,AD:15,REWARD:16,SPONSORINFO:17};
 let welcomed=false; try{ welcomed=!!localStorage.getItem('lax4_welcome'); }catch(e){}
 // ---- age gate + sponsor ads (intended sponsors: licensed dispensaries, Tonawanda Seneca Nation, Basom NY) ----
 const AGE_MIN=21;   // NY legal adult-use age; only 21+ see sponsor messages
-let ageOk=null; try{ const a=localStorage.getItem('lax4_age'); if(a!=null) ageOk=(a==='1'); }catch(e){}
+let ageOk=null;   // intentionally NOT persisted: the age check shows EVERY launch (each session the player self-certifies)
 // the "sponsor this game" invite - shown when there are no paid sponsors with budget left.
 // real paid sponsors live in Supabase (table: sponsors) and are fetched into paidSponsors below.
 const SPONSORS=[
@@ -472,7 +472,8 @@ const M_TILES=[
   {label:'SHARE',       icon:'share',  r:gtile(1,2), go:()=>{ shareGame(0); }}
 ];
 const UPDATE_BTN={x:40,y:H-44,w:W-80,h:22};
-const REDEEM_BTN={x:18,y:472,w:W-36,h:22};   // "free credits - redeem code" (hidden while an update prompt shows)
+const REDEEM_BTN={x:18,y:472,w:124,h:22};      // "free credits" (left)  - hidden while an update prompt shows
+const ADVERTISE_BTN={x:158,y:472,w:124,h:22};  // "advertise here" (right)
 const COACH_BTN={x:18,y:418,w:W-36,h:24};        // featured "Coach's Favorite Player" banner
 const PYRAMID_BTN={x:18,y:446,w:W-36,h:24};      // featured "Pyramid of Lacrosse Success" banner
 const COACH_I=2+M_TILES.length;                  // keyboard-nav index for the coach banner
@@ -490,6 +491,7 @@ function menuUpdate(){ let p; while((p=consumeTap())){
   if(hit(p,COACH_BTN)){ menuSel=COACH_I; menuActivate(COACH_I); return; }
   if(hit(p,PYRAMID_BTN)){ menuSel=PYRAMID_I; menuActivate(PYRAMID_I); return; }
   if(!updateReady && hit(p,REDEEM_BTN)){ SFX.ui(); openCode(); return; }
+  if(!updateReady && hit(p,ADVERTISE_BTN)){ SFX.ui(); state=S.SPONSORINFO; return; }
 }
   const n=5+M_TILES.length;
   if(keys.aimU){ menuSel=(menuSel+n-1)%n; keys.aimU=false; }
@@ -553,7 +555,9 @@ function drawMenu(){
     const tt='! UPDATE AVAILABLE - TAP'; drawText(tt,b.x+(b.w-textW(tt,1.1))/2,b.y+6,1.1,C.white);
     const nt='NEW: '+(updateNote||'IMPROVEMENTS & FIXES'); drawText(nt,(W-textW(nt,1))/2,H-16,1,C.gold); }
   else { const b=REDEEM_BTN; tileBox(b.x,b.y,b.w,b.h,'#155772','#37b6c6');
-    const t='FREE CREDITS - REDEEM CODE'; drawText(t,b.x+(b.w-textW(t,1.0))/2,b.y+6,1.0,C.white);
+    const t='REDEEM CODE'; drawText(t,b.x+(b.w-textW(t,1.0))/2,b.y+6,1.0,C.white);
+    const a=ADVERTISE_BTN; tileBox(a.x,a.y,a.w,a.h,'#5a4412','#ffd23f');
+    const t2='ADVERTISE HERE'; drawText(t2,a.x+(a.w-textW(t2,0.95))/2,a.y+6,0.95,C.gold);
     textC('TAP A MODE TO PLAY',H-15,1.05,C.cream); }
 }
 
@@ -976,8 +980,8 @@ function drawToasts(){
   if(toastT>150){ toasts.shift(); toastT=0; }
 }
 const SHARE_URL='https://michaeltholland.github.io/agent-mode/';
-const APP_VERSION='3.5';     // bump every deploy; the update check compares against the live file
-const WHATS_NEW='LEADERBOARD & REWARDS BACK ONLINE';   // one-line highlight shown on the update prompt
+const APP_VERSION='3.6';     // bump every deploy; the update check compares against the live file
+const WHATS_NEW='AGE CHECK EVERY LAUNCH + ADVERTISE MENU';   // one-line highlight shown on the update prompt
 let updateReady=false, updateNote='';
 function updateCheck(){
   if(typeof fetch!=='function') return;
@@ -1169,18 +1173,20 @@ const WEL_BTN={x:50,y:H/2+66,w:W-100,h:46};
 function welcomeUpdate(){ let p; while((p=consumeTap())){ try{ localStorage.setItem('lax4_welcome','1'); }catch(e){} welcomed=true; SFX.start(); if(ageOk===null) state=S.AGE; else gotoStart(); return; } }
 // ====================== AGE GATE (gates sponsor ads to 21+) ======================
 const AGE_YES={x:36,y:330,w:W-72,h:48}, AGE_NO={x:36,y:392,w:W-72,h:40};
-function ageSet(v){ ageOk=v; try{ localStorage.setItem('lax4_age',v?'1':'0'); }catch(e){} SFX.ui(); gotoStart(); }
+function ageSet(v){ ageOk=v; SFX.ui(); gotoStart(); }   // not stored - re-asked every launch
 function ageUpdate(){ let p; while((p=consumeTap())){ if(p.x<0) continue; if(hit(p,AGE_YES)){ ageSet(true); return; } if(hit(p,AGE_NO)){ ageSet(false); return; } } }
 function drawAge(){
   vgrad(0,0,W,H,'#10204a','#040814');
-  textCS('ONE QUICK QUESTION',58,2.1,C.gold,C.black);
-  textCS('ARE YOU '+AGE_MIN+' OR OLDER?',104,2.4,C.white,C.black);
-  const info=['THIS GAME MAY SHOW SPONSOR MESSAGES','FROM LICENSED DISPENSARIES ON THE','TONAWANDA SENECA NATION (BASOM, NY).','','THESE ARE ONLY SHOWN TO ADULTS '+AGE_MIN+'+.'];
-  let y=168; for(const l of info){ textC(l,y,1.15,C.cream); y+=22; }
+  // a clear age placard, shown every launch
+  tileBox(14,40,W-28,H-90,'rgba(10,16,38,0.96)',C.gold);
+  textCS('AGE CHECK',66,2.2,C.gold,C.black);
+  textCS('ARE YOU '+AGE_MIN+' OR OLDER?',104,2.3,C.white,C.black);
+  const info=['THIS GAME MAY SHOW PAID SPONSOR ADS','FROM LICENSED DISPENSARIES (TONAWANDA','SENECA NATION, BASOM NY). THOSE ADS','ARE ONLY SHOWN TO ADULTS '+AGE_MIN+' AND OVER.','','BY TAPPING "YES" YOU CERTIFY YOU ARE '+AGE_MIN+'+.','IF NOT SURE, TAP NO - YOU CAN STILL PLAY,','JUST WITH NO ADS.'];
+  let y=152; for(const l of info){ textC(l,y,1.05,C.cream); y+=20; }
   tileBox(AGE_YES.x,AGE_YES.y,AGE_YES.w,AGE_YES.h,'#15723e','#37c66b');
-  textCS("YES, I'M "+AGE_MIN+"+",AGE_YES.y+15,2,C.white,C.black);
-  tileBox(AGE_NO.x,AGE_NO.y,AGE_NO.w,AGE_NO.h,'rgba(22,30,52,0.92)','rgba(255,255,255,0.25)');
-  textCS('NO',AGE_NO.y+12,1.6,C.cream,C.black);
+  textCS("YES - I AM "+AGE_MIN+"+",AGE_YES.y+15,1.9,C.white,C.black);
+  tileBox(AGE_NO.x,AGE_NO.y,AGE_NO.w,AGE_NO.h,'rgba(22,30,52,0.92)','rgba(255,255,255,0.3)');
+  textCS('NO / NOT SURE',AGE_NO.y+12,1.5,C.cream,C.black);
 }
 // ====================== SPONSOR SLOT (random per play, 21+ only) ======================
 const AD_MIN=180;   // ~3s before you can continue
@@ -1230,6 +1236,23 @@ function drawReward(){
     textC('ADDED TO YOUR LOCKER',300,1.2,C.cream); }
   else { textCS(reward.msg,168,2.3,C.red,C.black); textC('CHECK THE CODE AND TRY AGAIN',208,1.2,C.cream); }
   if(frame%24<16) textCS('TAP TO CONTINUE',H-30,1.6,C.yellow,C.black);
+}
+// ====================== ADVERTISE / SPONSOR placard (always reachable from the menu) ======================
+function sponsorInfoUpdate(){ let p; while((p=consumeTap())){ SFX.ui(); state=S.MENU; return; } }
+function drawSponsorInfo(){
+  vgrad(0,0,W,H,'#10204a','#040814');
+  ctx.fillStyle=C.panelHi; ctx.fillRect(12,12,80,36); ctx.fillStyle=C.dgrey; ctx.fillRect(12,12,80,3);
+  glyph('LT',20,22,3,C.cream); drawText('BACK',36,23,2,C.cream);
+  textCS('ADVERTISE HERE',58,2.4,C.gold,C.black);
+  textCS('SPONSOR THIS GAME',92,1.6,C.cream,C.black);
+  tileBox(24,118,W-48,210,'rgba(20,30,52,0.96)',C.gold);
+  textCS('$10 = 100 ADS',150,2.6,C.gold,C.black);
+  const lines=['YOUR AD SHOWS RANDOMLY DURING PLAY','TO VERIFIED 21+ PLAYERS. WE LOG EVERY','VIEW SO YOU GET PROOF OF DELIVERY.','','GREAT FOR LICENSED DISPENSARIES ON','THE TONAWANDA SENECA NATION.'];
+  let y=186; for(const l of lines){ textC(l,y,1.0,C.cream); y+=20; }
+  textC('EMAIL TO BOOK YOUR SPOT:',344,1.1,C.gold);
+  textCS('michael@hollandcreativemarketing.com',366,0.95,C.green,C.black);
+  textCS('21+   -   ADS ONLY SHOWN TO ADULTS',410,1.0,C.grey,C.black);
+  if(frame%24<16) textCS('TAP TO RETURN',H-26,1.5,C.yellow,C.black);
 }
 // ====================== TOP 10 SPLASH (shown once at login) ======================
 function introUpdate(){ let p; while((p=consumeTap())){ SFX.ui(); state=S.MENU; return; } }
@@ -1592,6 +1615,7 @@ function frameStep(){
   else if(state===S.BADGES){ badgesUpdate(); drawBadges(); }
   else if(state===S.COACH){ coachUpdate(); drawCoach(); }
   else if(state===S.PYRAMID){ pyramidUpdate(); drawPyramid(); }
+  else if(state===S.SPONSORINFO){ sponsorInfoUpdate(); drawSponsorInfo(); }
   drawToasts();
   ctx.globalAlpha=0.05; ctx.fillStyle='#000'; for(let y=0;y<H;y+=3) ctx.fillRect(0,y,W,1); ctx.globalAlpha=1;
 }
