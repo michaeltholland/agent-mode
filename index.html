@@ -240,6 +240,21 @@ function lbSubmit(name,score){
     .catch(()=>{ lbStatus='offline'; });
 }
 lbFetch();   // prime the world board on load
+// ---- sponsor ads (Supabase): fetch paid sponsors + log each impression as proof-of-display ----
+let paidSponsors=[];   // active paid sponsors with budget remaining (filled from Supabase)
+let sid=''; try{ sid=localStorage.getItem('lax4_sid')||''; if(!sid){ sid=Math.random().toString(36).slice(2)+Date.now().toString(36); localStorage.setItem('lax4_sid',sid); } }catch(e){}
+function sponsorsFetch(){
+  if(typeof fetch!=='function') return;
+  fetch(SUPA_URL+'/rest/v1/sponsors?select=id,name,tag,sub,color&active=eq.true&order=served.asc&limit=20',{headers:SUPA_HEAD})
+    .then(r=>r.ok?r.json():Promise.reject(r.status))
+    .then(rows=>{ if(Array.isArray(rows)) paidSponsors=rows.map(s=>({id:s.id,name:s.name,tag:s.tag||'',sub:s.sub||'',col:s.color||'#37c66b'})); })
+    .catch(()=>{});   // table not set up yet / offline -> just show the invite
+}
+function logImpression(sp){   // atomic server-side log + counter (RPC auto-retires a sponsor at its paid cap)
+  if(typeof fetch!=='function' || !sp || sp.id==null) return;
+  fetch(SUPA_URL+'/rest/v1/rpc/log_impression',{method:'POST',headers:Object.assign({'Content-Type':'application/json'},SUPA_HEAD),body:JSON.stringify({p_sponsor_id:sp.id,p_session:sid})}).catch(()=>{});
+}
+sponsorsFetch();   // load paid sponsors on launch
 // career stats + badges
 let STATS={games:0,goals:0,bestCombo:0,fiveHoles:0,topCorners:0,perfects:0};
 try{ STATS=Object.assign(STATS, JSON.parse(localStorage.getItem('lax4_stats')||'{}')||{}); }catch(e){}
@@ -403,20 +418,22 @@ let welcomed=false; try{ welcomed=!!localStorage.getItem('lax4_welcome'); }catch
 // ---- age gate + sponsor ads (intended sponsors: licensed dispensaries, Tonawanda Seneca Nation, Basom NY) ----
 const AGE_MIN=21;   // NY legal adult-use age; only 21+ see sponsor messages
 let ageOk=null; try{ const a=localStorage.getItem('lax4_age'); if(a!=null) ageOk=(a==='1'); }catch(e){}
-// drop real paid sponsor creative in here; the invite card stays as the last entry.
-// ads show RANDOMLY at the start of a play (21+ only) - a sponsor buys 100 of these impressions for $10.
+// the "sponsor this game" invite - shown when there are no paid sponsors with budget left.
+// real paid sponsors live in Supabase (table: sponsors) and are fetched into paidSponsors below.
 const SPONSORS=[
-  {name:'SPONSOR THIS GAME', tag:'$10 = 100 ADS', sub:'YOUR AD SHOWN RANDOMLY DURING PLAY TO 21+ FANS. BOOK YOUR SPOT TODAY.', col:'#ffd23f', invite:true}
+  {name:'SPONSOR THIS GAME', tag:'$10 = 100 ADS', sub:'YOUR AD SHOWN RANDOMLY DURING PLAY TO 21+ FANS.', col:'#ffd23f', invite:true, contact:'michael@hollandcreativemarketing.com'}
 ];
 const AD_CHANCE=0.34;   // roughly 1 in 3 plays shows a sponsor (tunable)
-let ad={idx:0,t:0,then:null};
+let ad={sp:null,t:0,then:null};
 function gotoStart(){ state=S.INTRO; }   // after welcome/age -> the top 10
 function startState(){ if(!welcomed) return S.WELCOME; if(ageOk===null) return S.AGE; return S.INTRO; }
 let state=startState(), frame=0, menuSel=0;
-// show a random sponsor before some plays (21+ only), then run fn; otherwise run fn straight away
+// prefer a paid sponsor with budget remaining; otherwise show the invite
+function pickSponsor(){ return paidSponsors.length ? paidSponsors[(Math.random()*paidSponsors.length)|0] : SPONSORS[0]; }
+// show a sponsor before some plays (21+ only), then run fn; otherwise run fn straight away
 function maybeAdThen(fn){
-  if(ageOk && SPONSORS.length && Math.random()<AD_CHANCE){ ad={idx:(Math.random()*SPONSORS.length)|0, t:0, then:fn}; state=S.AD; }
-  else fn();
+  if(ageOk && Math.random()<AD_CHANCE){ const sp=pickSponsor(); if(sp){ ad={sp:sp,t:0,then:fn,logged:false}; state=S.AD; return; } }
+  fn();
 }
 function playStart(){ maybeAdThen(triviaStart); }
 // where the FEEDBACK / survey emails go (a throwaway address, confirmed by owner)
@@ -939,8 +956,8 @@ function drawToasts(){
   if(toastT>150){ toasts.shift(); toastT=0; }
 }
 const SHARE_URL='https://michaeltholland.github.io/agent-mode/';
-const APP_VERSION='3.2';     // bump every deploy; the update check compares against the live file
-const WHATS_NEW='SPONSOR THIS GAME - $10 = 100 ADS';   // one-line highlight shown on the update prompt
+const APP_VERSION='3.3';     // bump every deploy; the update check compares against the live file
+const WHATS_NEW='SPONSOR PROOF-OF-DISPLAY TRACKING';   // one-line highlight shown on the update prompt
 let updateReady=false, updateNote='';
 function updateCheck(){
   if(typeof fetch!=='function') return;
@@ -1147,16 +1164,19 @@ function drawAge(){
 }
 // ====================== SPONSOR SLOT (random per play, 21+ only) ======================
 const AD_MIN=180;   // ~3s before you can continue
-function adUpdate(){ ad.t++; let p; while((p=consumeTap())){ if(ad.t<AD_MIN) break; SFX.ui(); const fn=ad.then; ad.then=null; if(fn) fn(); else state=S.INTRO; return; } }
+function adUpdate(){ ad.t++;
+  if(ad.t>=AD_MIN && !ad.logged){ ad.logged=true; logImpression(ad.sp); }   // counts as a completed (>=3s) view
+  let p; while((p=consumeTap())){ if(ad.t<AD_MIN) break; SFX.ui(); const fn=ad.then; ad.then=null; if(fn) fn(); else state=S.INTRO; return; } }
 function drawAd(){
-  const s=SPONSORS[ad.idx]||SPONSORS[0]||{name:'SPONSOR',tag:'',sub:'',col:C.green};
+  const s=ad.sp||SPONSORS[0]||{name:'SPONSOR',tag:'',sub:'',col:C.green};
   vgrad(0,0,W,H,'#0a1430','#050a18');
   textCS(s.invite?'SPONSOR SPOT':'SPONSORED',40,1.5,C.gold,C.black);
   tileBox(24,78,W-48,300,'rgba(20,30,52,0.96)',s.col||C.green);
-  textCS(s.name,148,2.4,s.col||C.green,C.black);
-  if(s.tag) textCS(s.tag,196,2,C.white,C.black);
-  const sub=wrapText(s.sub||'',26); let y=242; for(const l of sub){ textC(l,y,1.1,C.cream); y+=20; }
-  textCS(s.invite?'CONTACT TO BOOK YOUR AD':(AGE_MIN+'+   -   ENJOY RESPONSIBLY'),352,1.1,C.gold,C.black);
+  textCS(s.name,146,2.3,s.col||C.green,C.black);
+  if(s.tag) textCS(s.tag,192,2,C.white,C.black);
+  const sub=wrapText(s.sub||'',26); let y=236; for(const l of sub){ textC(l,y,1.1,C.cream); y+=20; }
+  if(s.invite && s.contact){ textC('EMAIL TO BOOK YOUR SPOT:',y+8,1.0,C.gold); textCS(s.contact,y+26,0.95,s.col||C.green,C.black); }
+  else textCS(AGE_MIN+'+   -   ENJOY RESPONSIBLY',356,1.1,C.gold,C.black);
   if(ad.t<AD_MIN) textC('CONTINUE IN '+Math.max(1,Math.ceil((AD_MIN-ad.t)/60))+'...',H-40,1.4,C.grey);
   else if(frame%24<16) textCS('TAP TO CONTINUE',H-40,1.7,C.green,C.black);
 }
