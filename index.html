@@ -398,9 +398,9 @@ function drawJoy(j,s,label,active,accent){
 }
 
 // ====================== STATE ======================
-const S={MENU:0,HELP:1,G1:2,OVER:3,SURVEY:4,ENTRY:5,LB:6,BADGES:7,LOCKER:8,WELCOME:9,TRIVIA:10,COACH:11};
+const S={MENU:0,HELP:1,G1:2,OVER:3,SURVEY:4,ENTRY:5,LB:6,BADGES:7,LOCKER:8,WELCOME:9,TRIVIA:10,COACH:11,INTRO:12};
 let welcomed=false; try{ welcomed=!!localStorage.getItem('lax4_welcome'); }catch(e){}
-let state=welcomed?S.MENU:S.WELCOME, frame=0, menuSel=0;
+let state=welcomed?S.INTRO:S.WELCOME, frame=0, menuSel=0;   // returning players see the TOP 10 first
 // where the FEEDBACK / survey emails go (a throwaway address, confirmed by owner)
 const FEEDBACK_EMAIL='laxtapper.feedback@gmail.com';
 
@@ -574,7 +574,7 @@ function g1Init(){
   G1.aimX=AIM_CX; G1.aimY=AIM_CY;
   G1.gk={x:AIM_CX,idealX:AIM_CX,bw:60,bh:134,reach:14,lunge:0};
   G1.phase='aim'; G1.ball=null; G1.shake=0; G1.clock=SHOT_CLOCK;
-  G1.msg=''; G1.msgT=0; G1.msgC=C.white; G1.tut=true;
+  G1.msg=''; G1.msgT=0; G1.msgC=C.white; G1.tut=true; G1.call=''; G1.callT=0;
   G1.shooterX=W/2; G1.shooterY=330;
   G1.fhT=(Math.random()*(FH_OPEN+FH_SHUT))|0; G1.fhOpen=false;
   G1.streak=0; G1.maxCombo=0; G1.fiveHoles=0; G1.topCorners=0;
@@ -586,6 +586,11 @@ function g1Init(){
 }
 const ZONES=['TL','TR','BL','BR','FH'];
 const TAUNTS=['DENIED!','NOT TODAY!','WALL!','TOO EASY!','NICE TRY!','NOPE!','GOT IT!','SIT DOWN!'];
+// play-by-play announcer call-outs on goals
+const ANN_GOAL=['HE SCORES!','NICE SHOT!','GOAL!','BURIED IT!','BALL GAME!','HE BURIES IT!'];
+const ANN_BIG=['TOP SHELF!','BAR DOWN!','WHAT A SHOT!','HE SCORES!','SNIPE!','TOP CHEESE!'];
+const ANN_HOT=["HE'S ON FIRE!",'UNSTOPPABLE!','CALL THE BUS!','FILTHY!','LIGHT IT UP!'];
+function annCall(arr){ return arr[(Math.random()*arr.length)|0]; }
 function tcPick(){
   let inc=ZONES.filter(z=>!G1.tc.done[z] && z!==G1.tc.active);   // don't re-pick the spot we're already on
   if(!inc.length) inc=ZONES.filter(z=>!G1.tc.done[z]);           // only one zone left
@@ -630,7 +635,7 @@ function g1Fire(){
   G1.phase='fly'; G1.shots--; G1.gk.lunge=0; sR.dx=0; sR.dy=0; SFX.shoot();
 }
 function g1Update(){
-  if(G1.msgT>0) G1.msgT--; if(G1.tauntT>0) G1.tauntT--; if(G1.levelUp>0) G1.levelUp--; G1.shake*=0.82;
+  if(G1.msgT>0) G1.msgT--; if(G1.tauntT>0) G1.tauntT--; if(G1.levelUp>0) G1.levelUp--; if(G1.callT>0) G1.callT--; G1.shake*=0.82;
   // difficulty ramps within a game (shot 1->10) AND climbs with your level; shootout plays a touch easier
   const d=clamp(diffFactor() + (gameMode==='shootout'?-0.12:0) + (10-G1.shots)/9, 0, 1.6);
   G1.gk.reach=11+d*6;                                  // easier coverage (more open net)
@@ -724,6 +729,7 @@ function g1Update(){
         G1.score+=pts; G1.goals++; PROFILE.coins+=pts;   // 1 coin per point scored
         const hot=G1.streak>=3;
         G1.msg=(G1.streak>=2?('x'+G1.streak+' '):'')+label+' +'+pts; G1.msgC=hot?C.gold:(five?C.gold:C.green); G1.msgT=72;
+        G1.call=hot?annCall(ANN_HOT):(pts>=5?annCall(ANN_BIG):annCall(ANN_GOAL)); G1.callT=80;
         spawn(b.x,b.y,hot?30:(five?28:20),hot?[C.gold,C.red,C.yellow,C.white]:(five?[C.gold,C.yellow,C.white]:[C.green,C.yellow,C.white]));
         if(hot) beep(700+G1.streak*60,0.1,'square',0.05);
         (pts>=5||hot)?SFX.big():SFX.goal(); b.dead=true;
@@ -826,6 +832,7 @@ function g1Draw(){
   { let n=0; for(const k of ZONES) if(G1.tc.done[k]) n++; drawText('TARGETS '+n+'/5',6,31,1.1,C.gold); }
   if(G1.tauntT>0){ const tx=clamp(G1.gk.x,40,W-40); drawText(G1.taunt, tx-textW(G1.taunt,1.3)/2, NET1.y-12, 1.3, frame%8<4?C.red:C.white); }
   if(G1.streak>=2) textCS('COMBO x'+G1.streak,52,1.3,(frame%8<4?C.gold:C.yellow),C.black);
+  if(G1.callT>0){ const pop=1+clamp((G1.callT-64)/16,0,1)*0.5; textCS(G1.call,210,2.7*pop,C.gold,C.black); }
   if(G1.msgT>0) textCS(G1.msg,250+Math.sin(frame*0.3)*2,3,G1.msgC,C.black);
   if(G1.behind && G1.phase==='aim' && !G1.tut) textCS('BEHIND THE NET - COME AROUND',H-150,1.3,frame%12<7?C.red:C.cream,C.black);
   if(G1.levelUp>0) textCS('LEVEL '+(PROFILE.level)+'!',150,4,(frame%6<3?C.gold:C.yellow),C.black);
@@ -888,8 +895,8 @@ function drawToasts(){
   if(toastT>150){ toasts.shift(); toastT=0; }
 }
 const SHARE_URL='https://michaeltholland.github.io/agent-mode/';
-const APP_VERSION='2.5';     // bump every deploy; the update check compares against the live file
-const WHATS_NEW='LEARN-THEN-QUIZ LACROSSE FACTS';   // one-line highlight shown on the update prompt
+const APP_VERSION='2.6';     // bump every deploy; the update check compares against the live file
+const WHATS_NEW='ANNOUNCER CALLS + TOP 10 AT LOGIN';   // one-line highlight shown on the update prompt
 let updateReady=false, updateNote='';
 function updateCheck(){
   if(typeof fetch!=='function') return;
@@ -1078,7 +1085,24 @@ function drawSurvey(){
 
 // ====================== FIRST-PLAY WELCOME ======================
 const WEL_BTN={x:50,y:H/2+66,w:W-100,h:46};
-function welcomeUpdate(){ let p; while((p=consumeTap())){ try{ localStorage.setItem('lax4_welcome','1'); }catch(e){} welcomed=true; SFX.start(); state=S.MENU; return; } }
+function welcomeUpdate(){ let p; while((p=consumeTap())){ try{ localStorage.setItem('lax4_welcome','1'); }catch(e){} welcomed=true; SFX.start(); state=S.INTRO; return; } }
+// ====================== TOP 10 SPLASH (shown once at login) ======================
+function introUpdate(){ let p; while((p=consumeTap())){ SFX.ui(); state=S.MENU; return; } }
+function drawIntro(){
+  vgrad(0,0,W,H,'#10204a','#040814');
+  textCS('TOP 10',40,3.2,C.gold,C.black);
+  textC(lbStatus==='loading'?'LOADING WORLD BOARD...':'GLOBAL LEADERBOARD',82,1.2,C.green);
+  const n=Math.min(10,LB.length);
+  if(n===0){ textC('NO SCORES YET -',236,1.4,C.cream); textC('BE THE FIRST TO MAKE THE BOARD!',262,1.4,C.yellow); }
+  else { let y=110; for(let i=0;i<n;i++){ const e=LB[i], rank=i+1, col=tierColor(rank);
+    ctx.fillStyle=i%2?'rgba(255,255,255,0.05)':'rgba(255,255,255,0.10)'; ctx.fillRect(16,y-3,W-32,36);
+    drawText('#'+rank, 24, y+6, 1.4, col);
+    drawText(e.n||'---', 78, y+6, 1.5, C.cream);
+    const ss=''+e.s; drawText(ss, W-26-textW(ss,1.5), y+6, 1.5, C.yellow);
+    y+=39;
+  } }
+  if(frame%24<16) textCS('TAP TO PLAY',H-24,1.7,C.yellow,C.black);
+}
 function drawWelcome(){
   vgrad(0,0,W,H,C.skyTop,C.skyBot);
   ctx.fillStyle=C.grass1; ctx.fillRect(0,H*0.5,W,H*0.5);
@@ -1360,6 +1384,7 @@ function drawLocker(){
 function frameStep(){
   ctx.fillStyle='#000'; ctx.fillRect(0,0,W,H); tctx.clearRect(0,0,W,H); shareBtn=null;
   if(state===S.WELCOME){ welcomeUpdate(); drawWelcome(); }
+  else if(state===S.INTRO){ introUpdate(); drawIntro(); }
   else if(state===S.TRIVIA){ triviaUpdate(); drawTrivia(); }
   else if(state===S.MENU){ menuUpdate(); drawMenu(); }
   else if(state===S.HELP){ helpUpdate(); drawHelp(); }
