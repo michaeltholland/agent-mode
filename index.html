@@ -398,9 +398,23 @@ function drawJoy(j,s,label,active,accent){
 }
 
 // ====================== STATE ======================
-const S={MENU:0,HELP:1,G1:2,OVER:3,SURVEY:4,ENTRY:5,LB:6,BADGES:7,LOCKER:8,WELCOME:9,TRIVIA:10,COACH:11,INTRO:12,PYRAMID:13};
+const S={MENU:0,HELP:1,G1:2,OVER:3,SURVEY:4,ENTRY:5,LB:6,BADGES:7,LOCKER:8,WELCOME:9,TRIVIA:10,COACH:11,INTRO:12,PYRAMID:13,AGE:14,AD:15};
 let welcomed=false; try{ welcomed=!!localStorage.getItem('lax4_welcome'); }catch(e){}
-let state=welcomed?S.INTRO:S.WELCOME, frame=0, menuSel=0;   // returning players see the TOP 10 first
+// ---- age gate + sponsor ads (intended sponsors: licensed dispensaries, Tonawanda Seneca Nation, Basom NY) ----
+const AGE_MIN=21;   // NY legal adult-use age; only 21+ see sponsor messages
+let ageOk=null; try{ const a=localStorage.getItem('lax4_age'); if(a!=null) ageOk=(a==='1'); }catch(e){}
+// drop real sponsor creative in here; empty the array to disable ads entirely
+const SPONSORS=[
+  {name:'YOUR AD HERE', tag:'SPONSOR THIS GAME', sub:'LICENSED DISPENSARIES - TONAWANDA SENECA NATION, BASOM NY', col:'#37c66b'}
+];
+let adShown=false, ad={idx:0,t:0};
+function gotoStart(){   // after welcome/age: show one sponsor (once per session, 21+ only), then the top 10
+  if(ageOk && !adShown && SPONSORS.length){ adShown=true; ad={idx:(Math.random()*SPONSORS.length)|0,t:0}; state=S.AD; }
+  else state=S.INTRO;
+}
+function startState(){ if(!welcomed) return S.WELCOME; if(ageOk===null) return S.AGE;
+  if(ageOk && SPONSORS.length){ adShown=true; ad={idx:(Math.random()*SPONSORS.length)|0,t:0}; return S.AD; } return S.INTRO; }
+let state=startState(), frame=0, menuSel=0;
 // where the FEEDBACK / survey emails go (a throwaway address, confirmed by owner)
 const FEEDBACK_EMAIL='laxtapper.feedback@gmail.com';
 
@@ -582,6 +596,7 @@ function resolveObstacles(x,y){
 }
 function g1Init(){
   G1.endless=(gameMode==='shootout'); G1.saves=0;   // shootout = endless survival (3 saves = out)
+  G1.prevBest=HI.g1; G1.beatBest=false; G1.bestT=0;   // live "new high score!" celebration
   G1.shots=10; G1.score=0; G1.goals=0;
   G1.aimX=AIM_CX; G1.aimY=AIM_CY;
   G1.gk={x:AIM_CX,idealX:AIM_CX,bw:60,bh:134,reach:14,lunge:0};
@@ -651,7 +666,7 @@ function g1Fire(){
   G1.phase='fly'; G1.shots--; G1.gk.lunge=0; sR.dx=0; sR.dy=0; SFX.shoot();
 }
 function g1Update(){
-  if(G1.msgT>0) G1.msgT--; if(G1.tauntT>0) G1.tauntT--; if(G1.levelUp>0) G1.levelUp--; if(G1.callT>0) G1.callT--; G1.shake*=0.82;
+  if(G1.msgT>0) G1.msgT--; if(G1.tauntT>0) G1.tauntT--; if(G1.levelUp>0) G1.levelUp--; if(G1.callT>0) G1.callT--; if(G1.bestT>0) G1.bestT--; G1.shake*=0.82;
   // difficulty: ENDLESS ramps slowly with success (+1% every 2 goals); practice/field ramp over their 10 shots
   const ramp = G1.endless ? 0.01*Math.floor(G1.goals/2) : ((gameMode==='field'?0:-0.12) + (10-G1.shots)/9);
   const d=clamp(diffFactor() + ramp, 0, 1.6);
@@ -745,6 +760,9 @@ function g1Update(){
         G1.streak++; if(G1.streak>G1.maxCombo) G1.maxCombo=G1.streak;
         let bonus=0; if(G1.streak>=2){ bonus=G1.streak-1; pts+=bonus; }
         G1.score+=pts; G1.goals++; PROFILE.coins+=pts;   // 1 coin per point scored
+        if(!G1.beatBest && G1.prevBest>0 && G1.score>G1.prevBest){   // just passed your all-time best - serotonin!
+          G1.beatBest=true; G1.bestT=150; PROFILE.coins+=10; profSave();
+          spawn(W/2,150,52,[C.gold,C.green,C.yellow,C.white]); SFX.big(); }
         const hot=G1.streak>=3;
         G1.msg=(G1.streak>=2?('x'+G1.streak+' '):'')+label+' +'+pts; G1.msgC=hot?C.gold:(five?C.gold:C.green); G1.msgT=72;
         G1.call=hot?annCall(ANN_HOT):(pts>=5?annCall(ANN_BIG):annCall(ANN_GOAL)); G1.callT=80;
@@ -852,6 +870,7 @@ function g1Draw(){
   { let n=0; for(const k of ZONES) if(G1.tc.done[k]) n++; drawText('TARGETS '+n+'/5',6,31,1.1,C.gold); }
   if(G1.tauntT>0){ const tx=clamp(G1.gk.x,40,W-40); drawText(G1.taunt, tx-textW(G1.taunt,1.3)/2, NET1.y-12, 1.3, frame%8<4?C.red:C.white); }
   if(G1.streak>=2) textCS('COMBO x'+G1.streak,52,1.3,(frame%8<4?C.gold:C.yellow),C.black);
+  if(G1.bestT>0){ const pop=1+clamp((G1.bestT-134)/16,0,1)*0.4; textCS('NEW HIGH SCORE!  +10',126,2.3*pop,(frame%6<3?C.gold:C.green),C.black); }
   if(G1.callT>0){ const pop=1+clamp((G1.callT-64)/16,0,1)*0.5; textCS(G1.call,210,2.7*pop,C.gold,C.black); }
   if(G1.msgT>0) textCS(G1.msg,250+Math.sin(frame*0.3)*2,3,G1.msgC,C.black);
   if(G1.behind && G1.phase==='aim' && !G1.tut) textCS('BEHIND THE NET - COME AROUND',H-150,1.3,frame%12<7?C.red:C.cream,C.black);
@@ -916,8 +935,8 @@ function drawToasts(){
   if(toastT>150){ toasts.shift(); toastT=0; }
 }
 const SHARE_URL='https://michaeltholland.github.io/agent-mode/';
-const APP_VERSION='3.0';     // bump every deploy; the update check compares against the live file
-const WHATS_NEW='ENDLESS DIFFICULTY RAMPS AS YOU SCORE';   // one-line highlight shown on the update prompt
+const APP_VERSION='3.1';     // bump every deploy; the update check compares against the live file
+const WHATS_NEW='NEW-BEST CELEBRATION + SPONSOR SLOT';   // one-line highlight shown on the update prompt
 let updateReady=false, updateNote='';
 function updateCheck(){
   if(typeof fetch!=='function') return;
@@ -1106,7 +1125,37 @@ function drawSurvey(){
 
 // ====================== FIRST-PLAY WELCOME ======================
 const WEL_BTN={x:50,y:H/2+66,w:W-100,h:46};
-function welcomeUpdate(){ let p; while((p=consumeTap())){ try{ localStorage.setItem('lax4_welcome','1'); }catch(e){} welcomed=true; SFX.start(); state=S.INTRO; return; } }
+function welcomeUpdate(){ let p; while((p=consumeTap())){ try{ localStorage.setItem('lax4_welcome','1'); }catch(e){} welcomed=true; SFX.start(); if(ageOk===null) state=S.AGE; else gotoStart(); return; } }
+// ====================== AGE GATE (gates sponsor ads to 21+) ======================
+const AGE_YES={x:36,y:330,w:W-72,h:48}, AGE_NO={x:36,y:392,w:W-72,h:40};
+function ageSet(v){ ageOk=v; try{ localStorage.setItem('lax4_age',v?'1':'0'); }catch(e){} SFX.ui(); gotoStart(); }
+function ageUpdate(){ let p; while((p=consumeTap())){ if(p.x<0) continue; if(hit(p,AGE_YES)){ ageSet(true); return; } if(hit(p,AGE_NO)){ ageSet(false); return; } } }
+function drawAge(){
+  vgrad(0,0,W,H,'#10204a','#040814');
+  textCS('ONE QUICK QUESTION',58,2.1,C.gold,C.black);
+  textCS('ARE YOU '+AGE_MIN+' OR OLDER?',104,2.4,C.white,C.black);
+  const info=['THIS GAME MAY SHOW SPONSOR MESSAGES','FROM LICENSED DISPENSARIES ON THE','TONAWANDA SENECA NATION (BASOM, NY).','','THESE ARE ONLY SHOWN TO ADULTS '+AGE_MIN+'+.'];
+  let y=168; for(const l of info){ textC(l,y,1.15,C.cream); y+=22; }
+  tileBox(AGE_YES.x,AGE_YES.y,AGE_YES.w,AGE_YES.h,'#15723e','#37c66b');
+  textCS("YES, I'M "+AGE_MIN+"+",AGE_YES.y+15,2,C.white,C.black);
+  tileBox(AGE_NO.x,AGE_NO.y,AGE_NO.w,AGE_NO.h,'rgba(22,30,52,0.92)','rgba(255,255,255,0.25)');
+  textCS('NO',AGE_NO.y+12,1.6,C.cream,C.black);
+}
+// ====================== SPONSORED AD (one per session, 21+ only) ======================
+const AD_MIN=180;   // ~3s before you can continue
+function adUpdate(){ ad.t++; let p; while((p=consumeTap())){ if(ad.t<AD_MIN) break; SFX.ui(); state=S.INTRO; return; } }
+function drawAd(){
+  const s=SPONSORS[ad.idx]||SPONSORS[0]||{name:'SPONSOR',tag:'',sub:'',col:C.green};
+  vgrad(0,0,W,H,'#0a1430','#050a18');
+  textCS('SPONSORED',40,1.5,C.gold,C.black);
+  tileBox(24,78,W-48,300,'rgba(20,30,52,0.96)',s.col||C.green);
+  textCS(s.name,150,2.6,s.col||C.green,C.black);
+  if(s.tag) textCS(s.tag,200,1.6,C.white,C.black);
+  const sub=wrapText(s.sub||'',26); let y=242; for(const l of sub){ textC(l,y,1.1,C.cream); y+=20; }
+  textCS(AGE_MIN+'+   -   ENJOY RESPONSIBLY',352,1.1,C.gold,C.black);
+  if(ad.t<AD_MIN) textC('CONTINUE IN '+Math.max(1,Math.ceil((AD_MIN-ad.t)/60))+'...',H-40,1.4,C.grey);
+  else if(frame%24<16) textCS('TAP TO CONTINUE',H-40,1.7,C.green,C.black);
+}
 // ====================== TOP 10 SPLASH (shown once at login) ======================
 function introUpdate(){ let p; while((p=consumeTap())){ SFX.ui(); state=S.MENU; return; } }
 function drawIntro(){
@@ -1446,6 +1495,8 @@ function drawLocker(){
 function frameStep(){
   ctx.fillStyle='#000'; ctx.fillRect(0,0,W,H); tctx.clearRect(0,0,W,H); shareBtn=null;
   if(state===S.WELCOME){ welcomeUpdate(); drawWelcome(); }
+  else if(state===S.AGE){ ageUpdate(); drawAge(); }
+  else if(state===S.AD){ adUpdate(); drawAd(); }
   else if(state===S.INTRO){ introUpdate(); drawIntro(); }
   else if(state===S.TRIVIA){ triviaUpdate(); drawTrivia(); }
   else if(state===S.MENU){ menuUpdate(); drawMenu(); }
