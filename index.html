@@ -976,8 +976,8 @@ function drawToasts(){
   if(toastT>150){ toasts.shift(); toastT=0; }
 }
 const SHARE_URL='https://michaeltholland.github.io/agent-mode/';
-const APP_VERSION='3.4';     // bump every deploy; the update check compares against the live file
-const WHATS_NEW='REDEEM CODES & QR FOR FREE CREDITS';   // one-line highlight shown on the update prompt
+const APP_VERSION='3.5';     // bump every deploy; the update check compares against the live file
+const WHATS_NEW='LEADERBOARD & REWARDS BACK ONLINE';   // one-line highlight shown on the update prompt
 let updateReady=false, updateNote='';
 function updateCheck(){
   if(typeof fetch!=='function') return;
