@@ -652,8 +652,9 @@ function g1Fire(){
 }
 function g1Update(){
   if(G1.msgT>0) G1.msgT--; if(G1.tauntT>0) G1.tauntT--; if(G1.levelUp>0) G1.levelUp--; if(G1.callT>0) G1.callT--; G1.shake*=0.82;
-  // difficulty ramps within a game (shot 1->10) AND climbs with your level; shootout plays a touch easier
-  const d=clamp(diffFactor() + (gameMode==='field'?0:-0.12) + (10-G1.shots)/9, 0, 1.6);
+  // difficulty: ENDLESS ramps slowly with success (+1% every 2 goals); practice/field ramp over their 10 shots
+  const ramp = G1.endless ? 0.01*Math.floor(G1.goals/2) : ((gameMode==='field'?0:-0.12) + (10-G1.shots)/9);
+  const d=clamp(diffFactor() + ramp, 0, 1.6);
   G1.gk.reach=11+d*6;                                  // easier coverage (more open net)
   const openLen=Math.round((FH_OPEN+24)-d*16);         // five hole open longer: 104 -> 88 frames
   G1.fhT=(G1.fhT+1)%(openLen+FH_SHUT); G1.fhOpen=G1.fhT<openLen;
@@ -915,8 +916,8 @@ function drawToasts(){
   if(toastT>150){ toasts.shift(); toastT=0; }
 }
 const SHARE_URL='https://michaeltholland.github.io/agent-mode/';
-const APP_VERSION='2.9';     // bump every deploy; the update check compares against the live file
-const WHATS_NEW='ENDLESS GOALIE MODE - 3 SAVES & OUT';   // one-line highlight shown on the update prompt
+const APP_VERSION='3.0';     // bump every deploy; the update check compares against the live file
+const WHATS_NEW='ENDLESS DIFFICULTY RAMPS AS YOU SCORE';   // one-line highlight shown on the update prompt
 let updateReady=false, updateNote='';
 function updateCheck(){
   if(typeof fetch!=='function') return;
