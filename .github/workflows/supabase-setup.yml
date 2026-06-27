@@ -1,0 +1,54 @@
+name: Supabase setup
+
+# Runs the full database setup (supabase_setup.sql) against the Supabase project
+# using the Management API, so no local SQL editor is needed.
+# Requires one repo secret: SUPABASE_PAT  (a Supabase personal access token).
+# Trigger it from the Actions tab -> "Supabase setup" -> "Run workflow".
+
+on:
+  workflow_dispatch:
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_PAT: ${{ secrets.SUPABASE_PAT }}
+      PROJECT_REF: kfhieqwailjiqqhdgvez
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Apply setup SQL
+        run: |
+          if [ -z "$SUPABASE_PAT" ]; then
+            echo "::error::Missing SUPABASE_PAT secret. Add it in Settings -> Secrets and variables -> Actions."
+            exit 1
+          fi
+          BODY=$(jq -Rs '{query: .}' supabase_setup.sql)
+          HTTP=$(curl -sS -o resp.json -w "%{http_code}" -X POST \
+            "https://api.supabase.com/v1/projects/$PROJECT_REF/database/query" \
+            -H "Authorization: Bearer $SUPABASE_PAT" \
+            -H "Content-Type: application/json" \
+            --data "$BODY")
+          echo "Setup HTTP status: $HTTP"
+          cat resp.json
+          echo
+          if [ "$HTTP" != "200" ] && [ "$HTTP" != "201" ]; then
+            echo "::error::Setup failed (HTTP $HTTP)"; exit 1
+          fi
+
+      - name: Verify codes + sponsors
+        run: |
+          q() {
+            curl -sS -X POST \
+              "https://api.supabase.com/v1/projects/$PROJECT_REF/database/query" \
+              -H "Authorization: Bearer $SUPABASE_PAT" \
+              -H "Content-Type: application/json" \
+              --data "$(jq -Rn --arg q "$1" '{query:$q}')"
+            echo
+          }
+          echo "Promo codes:"
+          q "select code, coins, active from public.promo_codes order by code;"
+          echo "Sponsors:"
+          q "select name, paid, served, active from public.sponsors order by id;"
+          echo "Tables present:"
+          q "select table_name from information_schema.tables where table_schema='public' order by table_name;"
