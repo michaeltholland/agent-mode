@@ -1,26 +1,35 @@
 name: Supabase setup
 
 # Runs the full database setup (supabase_setup.sql) against the Supabase project
-# using the Management API, so no local SQL editor is needed.
-# Requires one repo secret: SUPABASE_PAT  (a Supabase personal access token).
-# Trigger it from the Actions tab -> "Supabase setup" -> "Run workflow".
+# via the Management API. Token comes from EITHER the SUPABASE_PAT secret OR a
+# one-time workflow input (which is masked in logs). Trigger from the Actions tab
+# or via the API.
 
 on:
   workflow_dispatch:
+    inputs:
+      pat:
+        description: 'One-time Supabase access token (leave blank to use the SUPABASE_PAT secret). REVOKE it after this run.'
+        required: false
+        default: ''
 
 jobs:
   setup:
     runs-on: ubuntu-latest
     env:
-      SUPABASE_PAT: ${{ secrets.SUPABASE_PAT }}
+      SUPABASE_PAT: ${{ github.event.inputs.pat != '' && github.event.inputs.pat || secrets.SUPABASE_PAT }}
       PROJECT_REF: kfhieqwailjiqqhdgvez
     steps:
       - uses: actions/checkout@v4
 
+      - name: Mask token in logs
+        run: |
+          if [ -n "$SUPABASE_PAT" ]; then echo "::add-mask::$SUPABASE_PAT"; fi
+
       - name: Apply setup SQL
         run: |
           if [ -z "$SUPABASE_PAT" ]; then
-            echo "::error::Missing SUPABASE_PAT secret. Add it in Settings -> Secrets and variables -> Actions."
+            echo "::error::No token. Provide the 'pat' input or set the SUPABASE_PAT secret."
             exit 1
           fi
           BODY=$(jq -Rs '{query: .}' supabase_setup.sql)
@@ -30,13 +39,12 @@ jobs:
             -H "Content-Type: application/json" \
             --data "$BODY")
           echo "Setup HTTP status: $HTTP"
-          cat resp.json
-          echo
+          cat resp.json; echo
           if [ "$HTTP" != "200" ] && [ "$HTTP" != "201" ]; then
             echo "::error::Setup failed (HTTP $HTTP)"; exit 1
           fi
 
-      - name: Verify codes + sponsors
+      - name: Verify codes + sponsors + tables
         run: |
           q() {
             curl -sS -X POST \
@@ -46,9 +54,9 @@ jobs:
               --data "$(jq -Rn --arg q "$1" '{query:$q}')"
             echo
           }
-          echo "Promo codes:"
+          echo "== Promo codes =="
           q "select code, coins, active from public.promo_codes order by code;"
-          echo "Sponsors:"
+          echo "== Sponsors =="
           q "select name, paid, served, active from public.sponsors order by id;"
-          echo "Tables present:"
+          echo "== Public tables =="
           q "select table_name from information_schema.tables where table_schema='public' order by table_name;"
