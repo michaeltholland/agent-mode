@@ -472,8 +472,7 @@ const M_TILES=[
   {label:'SHARE',       icon:'share',  r:gtile(1,2), go:()=>{ shareGame(0); }}
 ];
 const UPDATE_BTN={x:40,y:H-44,w:W-80,h:22};
-const REDEEM_BTN={x:18,y:472,w:124,h:22};      // "free credits" (left)  - hidden while an update prompt shows
-const ADVERTISE_BTN={x:158,y:472,w:124,h:22};  // "advertise here" (right)
+const ADVERTISE_BTN={x:18,y:472,w:W-36,h:22};  // "advertise here" (redeem-code button removed)
 const COACH_BTN={x:18,y:418,w:W-36,h:24};        // featured "Coach's Favorite Player" banner
 const PYRAMID_BTN={x:18,y:446,w:W-36,h:24};      // featured "Pyramid of Lacrosse Success" banner
 const COACH_I=2+M_TILES.length;                  // keyboard-nav index for the coach banner
@@ -490,7 +489,6 @@ function menuUpdate(){ let p; while((p=consumeTap())){
   for(let i=0;i<M_TILES.length;i++){ if(hit(p,M_TILES[i].r)){ menuSel=i+2; menuActivate(i+2); return; } }
   if(hit(p,COACH_BTN)){ menuSel=COACH_I; menuActivate(COACH_I); return; }
   if(hit(p,PYRAMID_BTN)){ menuSel=PYRAMID_I; menuActivate(PYRAMID_I); return; }
-  if(!updateReady && hit(p,REDEEM_BTN)){ SFX.ui(); openCode(); return; }
   if(!updateReady && hit(p,ADVERTISE_BTN)){ SFX.ui(); state=S.SPONSORINFO; return; }
 }
   const n=5+M_TILES.length;
@@ -554,10 +552,8 @@ function drawMenu(){
     tileBox(b.x,b.y,b.w,b.h, fl?'#1f9a54':'#15723e', C.white);
     const tt='! UPDATE AVAILABLE - TAP'; drawText(tt,b.x+(b.w-textW(tt,1.1))/2,b.y+6,1.1,C.white);
     const nt='NEW: '+(updateNote||'IMPROVEMENTS & FIXES'); drawText(nt,(W-textW(nt,1))/2,H-16,1,C.gold); }
-  else { const b=REDEEM_BTN; tileBox(b.x,b.y,b.w,b.h,'#155772','#37b6c6');
-    const t='REDEEM CODE'; drawText(t,b.x+(b.w-textW(t,1.0))/2,b.y+6,1.0,C.white);
-    const a=ADVERTISE_BTN; tileBox(a.x,a.y,a.w,a.h,'#5a4412','#ffd23f');
-    const t2='ADVERTISE HERE'; drawText(t2,a.x+(a.w-textW(t2,0.95))/2,a.y+6,0.95,C.gold);
+  else { const a=ADVERTISE_BTN; tileBox(a.x,a.y,a.w,a.h,'#5a4412','#ffd23f');
+    const t2='ADVERTISE HERE'; drawText(t2,a.x+(a.w-textW(t2,1.0))/2,a.y+6,1.0,C.gold);
     textC('TAP A MODE TO PLAY',H-15,1.05,C.cream); }
 }
 
@@ -698,6 +694,7 @@ function g1Covered(tx,ty,gk){
 function g1NextShot(){
   if(G1.endless){ if(G1.saves>=3 || G1.misses>=3){ endGame(G1.score); return; } }   // out after 3 saves OR 3 misses
   else if(G1.shots<=0){ endGame(G1.score); return; }                                 // practice/field: 10 shots
+  tcPick();   // move the target to a fresh zone every shot so it bounces around the cage
   G1.phase='aim'; G1.ball=null; G1.clock=SHOT_CLOCK;
 }
 function g1Foul(){ G1.phase='foul'; G1.foulT=0; G1.ball=null; G1.streak=0; G1.shake=8; SFX.foul(); }
@@ -839,7 +836,6 @@ function g1Update(){
               G1.msg='LEVEL '+PROFILE.level+'! +25'; G1.msgC=C.gold; G1.msgT=100; SFX.big();
               spawn(W/2,170,55,[C.gold,C.green,C.yellow,C.white]);
             } else { G1.msg='TARGET HIT! +'+pts; G1.msgC=C.gold; G1.msgT=76; }
-            tcPick();
           }
         }
       }
@@ -1001,8 +997,8 @@ function drawToasts(){
   if(toastT>150){ toasts.shift(); toastT=0; }
 }
 const SHARE_URL='https://michaeltholland.github.io/agent-mode/';
-const APP_VERSION='3.8';     // bump every deploy; the update check compares against the live file
-const WHATS_NEW='BIGGER VERSION LABEL';   // one-line highlight shown on the update prompt
+const APP_VERSION='3.9';     // bump every deploy; the update check compares against the live file
+const WHATS_NEW='TARGET MOVES EVERY SHOT';   // one-line highlight shown on the update prompt
 let updateReady=false, updateNote='';
 function updateCheck(){
   if(typeof fetch!=='function') return;
