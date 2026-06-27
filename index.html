@@ -640,7 +640,7 @@ function resolveObstacles(x,y){
   return {x:clamp(x,SH_MINX,SH_MAXX), y:clamp(y,SH_MINY,SH_MAXY)};
 }
 function g1Init(){
-  G1.endless=(gameMode==='shootout'); G1.saves=0;   // shootout = endless survival (3 saves = out)
+  G1.endless=(gameMode==='shootout'); G1.saves=0; G1.misses=0;   // shootout = endless: 3 saves OR 3 missed targets = out
   G1.prevBest=HI.g1; G1.beatBest=false; G1.bestT=0;   // live "new high score!" celebration
   G1.shots=10; G1.score=0; G1.goals=0;
   G1.aimX=AIM_CX; G1.aimY=AIM_CY;
@@ -651,12 +651,12 @@ function g1Init(){
   G1.fhT=(Math.random()*(FH_OPEN+FH_SHUT))|0; G1.fhOpen=false;
   G1.streak=0; G1.maxCombo=0; G1.fiveHoles=0; G1.topCorners=0;
   G1.taunt=''; G1.tauntT=0; G1.levelUp=0;
-  G1.tc={done:{TL:false,TR:false,BL:false,BR:false,FH:false}, active:null, laps:0};
+  G1.tc={done:{}, active:null, laps:0}; for(const k of ZONES) G1.tc.done[k]=false;
   tcPick();
   if(gameMode==='field') spawnPlayers(); else players=[];   // shootout = just you + keeper
   resetSticks();
 }
-const ZONES=['TL','TR','BL','BR','FH'];
+const ZONES=['TL','TR','BL','BR','CL','CR','FH'];   // 4 corners + 2 crease (low, flanking the keeper) + five hole
 const TAUNTS=['DENIED!','NOT TODAY!','WALL!','TOO EASY!','NICE TRY!','NOPE!','GOT IT!','SIT DOWN!'];
 // play-by-play announcer call-outs on goals
 const ANN_GOAL=['HE SCORES!','NICE SHOT!','GOAL!','BURIED IT!','BALL GAME!','HE BURIES IT!'];
@@ -670,11 +670,18 @@ function tcPick(){
   const pool=corners.length? corners : inc;                      // the five hole comes last
   G1.tc.active = pool.length? pool[(Math.random()*pool.length)|0] : null;
 }
-// which zone did a GOAL land in (4 quadrants + five hole)
+// which zone did a GOAL land in (4 corners + 2 crease-low + five hole)
 function g1Zone(tx,ty,gk){ if(g1FiveHoleHit(tx,ty,gk)) return 'FH';
-  return (ty<NET1.y+NET1.h*0.5?'T':'B')+(tx<AIM_CX?'L':'R'); }
+  const fx=(tx-NET1.x)/NET1.w;                  // 0..1 across the goal mouth
+  if(ty<NET1.y+NET1.h*0.5) return fx<0.5?'TL':'TR';   // top half = corners
+  if(fx<0.28) return 'BL';                       // bottom corners
+  if(fx>0.72) return 'BR';
+  return fx<0.5?'CL':'CR';                        // low + central = crease zones flanking the keeper
+}
 function tcZonePos(z,gk){ const nl=NET1.x,nr=NET1.x+NET1.w,nt=NET1.y,nb=NET1.y+NET1.h,w=NET1.w,h=NET1.h;
   if(z==='FH'){ const fh=g1FiveHole(gk); return {x:fh.x,y:fh.y}; }
+  if(z==='CL') return {x: nl+w*0.36, y: nb-h*0.14};   // crease targets: low, just inside the keeper
+  if(z==='CR') return {x: nr-w*0.36, y: nb-h*0.14};
   return {x: z.charAt(1)==='L'? nl+w*0.18 : nr-w*0.18, y: z.charAt(0)==='T'? nt+h*0.2 : nb-h*0.2}; }
 // the gap between the goalie's legs (five hole)
 function g1FiveHole(gk){ return {x:gk.x, y:(NET1.y+NET1.h)-gk.bh*0.20, r:13}; }
@@ -689,8 +696,8 @@ function g1Covered(tx,ty,gk){
   return true;
 }
 function g1NextShot(){
-  if(G1.endless){ if(G1.saves>=3){ endGame(G1.score); return; } }   // survival: out after 3 saves
-  else if(G1.shots<=0){ endGame(G1.score); return; }                // practice/field: 10 shots
+  if(G1.endless){ if(G1.saves>=3 || G1.misses>=3){ endGame(G1.score); return; } }   // out after 3 saves OR 3 misses
+  else if(G1.shots<=0){ endGame(G1.score); return; }                                 // practice/field: 10 shots
   G1.phase='aim'; G1.ball=null; G1.clock=SHOT_CLOCK;
 }
 function g1Foul(){ G1.phase='foul'; G1.foulT=0; G1.ball=null; G1.streak=0; G1.shake=8; SFX.foul(); }
@@ -743,6 +750,7 @@ function g1Update(){
     if(G1.clock<=0){
       // shot-clock violation: this shot is burned
       G1.msg='SHOT CLOCK!'; G1.msgC=C.red; G1.msgT=72; G1.shake=7; G1.streak=0;
+      if(G1.endless){ G1.misses++; if(G1.misses>=3){ G1.msg='3 MISSES - GAME OVER!'; G1.msgT=90; } }
       beep(150,0.35,'sawtooth',0.06); G1.shots--; G1.ball=null; G1.phase='result'; G1.resT=42;
       let p; while(consumeTap()){}   // drop any taps so they don't leak into the next shot
     } else {
@@ -788,6 +796,7 @@ function g1Update(){
       const inNet = b.tx>NET1.x && b.tx<NET1.x+NET1.w && b.ty>NET1.y && b.ty<NET1.y+NET1.h;
       if(!inNet){
         G1.msg='MISSED!'; G1.msgC=C.grey; G1.msgT=64; SFX.wide(); G1.streak=0;
+        if(G1.endless){ G1.misses++; G1.msg=(G1.misses>=3?'3 MISSES - GAME OVER!':'MISS! '+G1.misses+'/3'); G1.msgT=G1.misses>=3?90:64; }
         b.bounce=true;   // sails on past the net
       } else if(g1Covered(b.tx,b.ty,gk)){
         G1.msg='SAVE!'; G1.msgC=C.red; G1.msgT=64; G1.shake=6; SFX.save(); G1.streak=0;
@@ -795,36 +804,43 @@ function g1Update(){
         G1.taunt=TAUNTS[(Math.random()*TAUNTS.length)|0]; G1.tauntT=60;   // keeper trash talk
         b.vx=-b.vx*0.3; b.vy=2.6; b.bounce=true;
       } else {
-        const five=g1FiveHoleHit(b.tx,b.ty,gk);
-        const vy=(b.ty-NET1.y)/NET1.h, top=vy<0.34, low=vy>0.66;
-        let pts,label;
-        if(five){ pts=5; label='FIVE HOLE!'; G1.fiveHoles++; }
-        else if(top){ pts=5; label='TOP CORNER!'; G1.topCorners++; }
-        else if(low){ pts=4; label='LOW CORNER!'; }
-        else { pts=3; label='FAR SIDE!'; }
-        G1.streak++; if(G1.streak>G1.maxCombo) G1.maxCombo=G1.streak;
-        let bonus=0; if(G1.streak>=2){ bonus=G1.streak-1; pts+=bonus; }
-        G1.score+=pts; G1.goals++; PROFILE.coins+=pts;   // 1 coin per point scored
-        if(!G1.beatBest && G1.prevBest>0 && G1.score>G1.prevBest){   // just passed your all-time best - serotonin!
-          G1.beatBest=true; G1.bestT=150; PROFILE.coins+=10; profSave();
-          spawn(W/2,150,52,[C.gold,C.green,C.yellow,C.white]); SFX.big(); }
-        const hot=G1.streak>=3;
-        G1.msg=(G1.streak>=2?('x'+G1.streak+' '):'')+label+' +'+pts; G1.msgC=hot?C.gold:(five?C.gold:C.green); G1.msgT=72;
-        G1.call=hot?annCall(ANN_HOT):(pts>=5?annCall(ANN_BIG):annCall(ANN_GOAL)); G1.callT=80;
-        spawn(b.x,b.y,hot?30:(five?28:20),hot?[C.gold,C.red,C.yellow,C.white]:(five?[C.gold,C.yellow,C.white]:[C.green,C.yellow,C.white]));
-        if(hot) beep(700+G1.streak*60,0.1,'square',0.05);
-        (pts>=5||hot)?SFX.big():SFX.goal(); b.dead=true;
-        // ---- TARGET CHALLENGE: did this goal hit the lit target zone? ----
         const z=g1Zone(b.tx,b.ty,gk);
-        if(G1.tc.active===z && !G1.tc.done[z]){
-          G1.tc.done[z]=true; PROFILE.coins+=5;
-          if(ZONES.every(k=>G1.tc.done[k])){            // all 5 cleared -> level up
-            G1.tc.laps++; PROFILE.level=(PROFILE.level||1)+1; PROFILE.coins+=25; profSave();
-            G1.levelUp=100; for(const k of ZONES) G1.tc.done[k]=false;
-            G1.msg='LEVEL '+PROFILE.level+'! +25'; G1.msgC=C.gold; G1.msgT=100; SFX.big();
-            spawn(W/2,170,55,[C.gold,C.green,C.yellow,C.white]);
-          } else { G1.msg='TARGET HIT! +5'; G1.msgC=C.gold; G1.msgT=76; }
-          tcPick();
+        const onTarget = (G1.tc.active===z);
+        if(G1.endless && !onTarget){
+          // it went in, but not where the target was lit -> no points, and it counts as a miss
+          b.dead=true; G1.streak=0; SFX.wide();
+          G1.misses++; G1.msg=(G1.misses>=3?'3 MISSES - GAME OVER!':'OFF TARGET! '+G1.misses+'/3'); G1.msgC=C.grey; G1.msgT=G1.misses>=3?90:70;
+        } else {
+          const five=g1FiveHoleHit(b.tx,b.ty,gk);
+          const vy=(b.ty-NET1.y)/NET1.h, top=vy<0.34, low=vy>0.66;
+          let pts,label;
+          if(five){ pts=5; label='FIVE HOLE!'; G1.fiveHoles++; }
+          else if(top){ pts=5; label='TOP CORNER!'; G1.topCorners++; }
+          else if(low){ pts=4; label='LOW CORNER!'; }
+          else { pts=3; label='SCORE!'; }
+          G1.streak++; if(G1.streak>G1.maxCombo) G1.maxCombo=G1.streak;
+          let bonus=0; if(G1.streak>=2){ bonus=G1.streak-1; pts+=bonus; }
+          G1.score+=pts; G1.goals++; PROFILE.coins+=pts;   // 1 coin per point scored
+          if(!G1.beatBest && G1.prevBest>0 && G1.score>G1.prevBest){   // just passed your all-time best - serotonin!
+            G1.beatBest=true; G1.bestT=150; PROFILE.coins+=10; profSave();
+            spawn(W/2,150,52,[C.gold,C.green,C.yellow,C.white]); SFX.big(); }
+          const hot=G1.streak>=3;
+          G1.msg=(G1.streak>=2?('x'+G1.streak+' '):'')+label+' +'+pts; G1.msgC=hot?C.gold:(five?C.gold:C.green); G1.msgT=72;
+          G1.call=hot?annCall(ANN_HOT):(pts>=5?annCall(ANN_BIG):annCall(ANN_GOAL)); G1.callT=80;
+          spawn(b.x,b.y,hot?30:(five?28:20),hot?[C.gold,C.red,C.yellow,C.white]:(five?[C.gold,C.yellow,C.white]:[C.green,C.yellow,C.white]));
+          if(hot) beep(700+G1.streak*60,0.1,'square',0.05);
+          (pts>=5||hot)?SFX.big():SFX.goal(); b.dead=true;
+          // ---- TARGET CHALLENGE: light up the zone we just hit ----
+          if(onTarget && !G1.tc.done[z]){
+            G1.tc.done[z]=true; PROFILE.coins+=5;
+            if(ZONES.every(k=>G1.tc.done[k])){            // cleared every zone -> level up
+              G1.tc.laps++; PROFILE.level=(PROFILE.level||1)+1; PROFILE.coins+=25; profSave();
+              G1.levelUp=100; for(const k of ZONES) G1.tc.done[k]=false;
+              G1.msg='LEVEL '+PROFILE.level+'! +25'; G1.msgC=C.gold; G1.msgT=100; SFX.big();
+              spawn(W/2,170,55,[C.gold,C.green,C.yellow,C.white]);
+            } else { G1.msg='TARGET HIT! +'+pts; G1.msgC=C.gold; G1.msgT=76; }
+            tcPick();
+          }
         }
       }
       G1.phase='result'; G1.resT=42;
@@ -902,8 +918,12 @@ function g1Draw(){
   drawText('EXIT',EXIT_BTN.x+(EXIT_BTN.w-textW('EXIT',1.2))/2,EXIT_BTN.y+7,1.2,C.cream);
   drawText('SCORE',56,3,1.2,C.grey); drawText(''+G1.score,56,13,2,C.white);
   drawText('GOALS',W/2-18,3,1.2,C.grey); drawText(G1.endless?(''+G1.goals):(G1.goals+'/10'),W/2-18,13,2,C.green);
-  if(G1.endless){ drawText('SAVES',W-66,3,1.2,C.grey);
-    for(let i=0;i<3;i++){ ctx.fillStyle=i<G1.saves?C.red:'rgba(255,255,255,0.22)'; ctx.fillRect(W-64+i*11,14,8,8); } }
+  if(G1.endless){
+    drawText('SAVES',W-118,3,1.0,C.grey);
+    for(let i=0;i<3;i++){ ctx.fillStyle=i<G1.saves?C.red:'rgba(255,255,255,0.22)'; ctx.fillRect(W-118+i*11,14,8,8); }
+    drawText('MISS',W-58,3,1.0,C.grey);
+    for(let i=0;i<3;i++){ ctx.fillStyle=i<G1.misses?C.gold:'rgba(255,255,255,0.22)'; ctx.fillRect(W-58+i*11,14,8,8); }
+  }
   else { drawText('SHOTS',W-62,3,1.2,C.grey); drawText(''+G1.shots,W-34,13,2,C.yellow); }
   // shot clock — depleting bar under the HUD, flashes red in the final 1.25s
   if(!G1.tut && (G1.phase==='aim'||G1.phase==='fly')){
@@ -912,7 +932,7 @@ function g1Draw(){
     const col=frac>0.5?C.green:frac>0.25?C.yellow:C.red;
     ctx.fillStyle=(frac<=0.25&&frame%8<4)?C.white:col; ctx.fillRect(6,27,cw*frac,4);
   }
-  { let n=0; for(const k of ZONES) if(G1.tc.done[k]) n++; drawText('TARGETS '+n+'/5',6,31,1.1,C.gold); }
+  { let n=0; for(const k of ZONES) if(G1.tc.done[k]) n++; drawText('TARGETS '+n+'/'+ZONES.length,6,31,1.1,C.gold); }
   if(G1.tauntT>0){ const tx=clamp(G1.gk.x,40,W-40); drawText(G1.taunt, tx-textW(G1.taunt,1.3)/2, NET1.y-12, 1.3, frame%8<4?C.red:C.white); }
   if(G1.streak>=2) textCS('COMBO x'+G1.streak,52,1.3,(frame%8<4?C.gold:C.yellow),C.black);
   if(G1.bestT>0){ const pop=1+clamp((G1.bestT-134)/16,0,1)*0.4; textCS('NEW HIGH SCORE!  +10',126,2.3*pop,(frame%6<3?C.gold:C.green),C.black); }
@@ -922,10 +942,11 @@ function g1Draw(){
   if(G1.levelUp>0) textCS('LEVEL '+(PROFILE.level)+'!',150,4,(frame%6<3?C.gold:C.yellow),C.black);
   if(G1.phase==='foul'){ textCS('FOUL!',150,5,(frame%8<4?C.red:C.yellow),C.black); textCS('CREASE VIOLATION',188,1.3,C.cream,C.black); textCS('TURNOVER - SHOT LOST',208,1.2,C.grey,C.black); }
   if(G1.tut){ const title=gameMode==='field'?'FULL FIELD':(G1.endless?'GOALIE SHOOTOUT':'PRACTICE');
-    const lines=['MOVE = LEFT STICK   AIM = RIGHT','HIT THE GOLD TARGET (IT MOVES)','CLEAR 4 CORNERS + 5 HOLE = LEVEL'];
-    if(gameMode==='field') lines.push('RED DEFENDERS CAN BLOCK - WEAVE','CARRY BEHIND THE NET TO DODGE');
+    const lines=['MOVE = LEFT STICK   AIM = RIGHT'];
+    if(G1.endless){ lines.push('ONLY THE GOLD TARGET SCORES','IT MOVES - CORNERS, CREASE, 5 HOLE','3 MISSES OR 3 SAVES = GAME OVER'); }
+    else { lines.push('HIT THE GOLD TARGET (IT MOVES)','CLEAR EVERY ZONE = LEVEL UP'); }
+    if(gameMode==='field') lines.push('RED DEFENDERS CAN BLOCK - WEAVE');
     else lines.push('AIM TURF TO BOUNCE - NO CREASE!');
-    if(G1.endless) lines.push('SCORE FOREVER - 3 SAVES = OUT!');
     tutorial(title,lines); }
 }
 
@@ -980,8 +1001,8 @@ function drawToasts(){
   if(toastT>150){ toasts.shift(); toastT=0; }
 }
 const SHARE_URL='https://michaeltholland.github.io/agent-mode/';
-const APP_VERSION='3.6';     // bump every deploy; the update check compares against the live file
-const WHATS_NEW='AGE CHECK EVERY LAUNCH + ADVERTISE MENU';   // one-line highlight shown on the update prompt
+const APP_VERSION='3.7';     // bump every deploy; the update check compares against the live file
+const WHATS_NEW='GOALIE: ONLY TARGETS SCORE - 3 STRIKES OUT';   // one-line highlight shown on the update prompt
 let updateReady=false, updateNote='';
 function updateCheck(){
   if(typeof fetch!=='function') return;
