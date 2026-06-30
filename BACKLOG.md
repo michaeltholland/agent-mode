@@ -2,6 +2,37 @@
 
 Running list of ideas to revisit. Nothing here is live yet.
 
+## SAVED CONTENT — Global Lacrosse / Lacrosse IQ infographics (info screens + trivia)
+
+### "WHY THE BEST PLAYERS LOOK SLOW" (IMG_1417) — 7 points
+Tagline: "It's not about speed. It's about game." Key lesson: the best players look
+slow because they think faster, anticipate earlier, and make smarter decisions.
+Good as a Pyramid-style info screen and/or teach-then-quiz facts.
+1. PLAY BEFORE THE BALL ARRIVES — scan, anticipate, get to the right spot early; rarely react late.
+2. MOVE WITH PURPOSE — every cut, dodge, and step has a reason; no wasted motion.
+3. STAY CALM UNDER PRESSURE — keep composure, make clear decisions, control the pace.
+4. GREAT FIELD VISION — see plays develop, read defenses, find open teammates first.
+5. MASTER FUNDAMENTALS — clean skills, efficient footwork, strong stick protection.
+6. LET THE GAME COME TO THEM — trust preparation, take what the defense gives.
+7. THINK FASTER THAN THEY RUN — process quickly, solve problems, create advantages without extra speed.
+
+### "BEFORE YOU BUY — BEGINNER EQUIPMENT GUIDE" (IMG_1397) — 12 points
+Best as a standalone info screen (gear checklist for new players). Credit: Global Lacrosse / Lacrosse IQ.
+1.  STICK COMES FIRST — most important piece; control, durability, a legal pocket.
+2.  GEAR FOR YOUR POSITION — attack/mid lighter; D longer shafts; goalies specialized.
+3.  HELMET FIT > PRICE — sits level, secure, clear vision, meets safety standards.
+4.  NEVER SKIMP ON GLOVES — protect hands/wrists while keeping control; full protection + flex.
+5.  SHOULDER PADS THAT MOVE — protect chest/shoulders/sternum without restricting motion.
+6.  ARM PROTECTION BY POSITION — attack more; mids balance mobility; some prefer lighter.
+7.  MOUTHGUARDS ARE MANDATORY — protect teeth; required by most leagues.
+8.  CLEATS IMPROVE PERFORMANCE — traction/stability for sprinting, cutting, quick changes.
+9.  GOALIES NEED EXTRA — goalie stick, throat guard, chest protector, goalie gloves, padding.
+10. CHECK LEAGUE RULES FIRST — helmet cert, chest protectors, stick dimensions, etc.
+11. COMFORT HELPS DEVELOPMENT — well-fitted gear lets you focus on learning.
+12. START WITH ESSENTIALS, UPGRADE LATER — reliable, well-fitted basics first.
+
+Note: confirm exact source credit for IMG_1417 (style matches the Global Lacrosse series).
+
 ## NEXT UPDATE — "VISION vs STICK SKILLS" trivia (content credit: Global Lacrosse)
 Owner uploaded the infographic (IMG_1266) for the teach-then-quiz pool. Drop these
 into TEACH_POOL alongside COACH_Q / PYRAMID_Q (keys 'v'+i and 'k'+i, topic
