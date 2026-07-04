@@ -441,7 +441,7 @@ function drawJoy(j,s,label,active,accent){
 }
 
 // ====================== STATE ======================
-const S={MENU:0,HELP:1,G1:2,OVER:3,SURVEY:4,ENTRY:5,LB:6,BADGES:7,LOCKER:8,WELCOME:9,TRIVIA:10,COACH:11,INTRO:12,PYRAMID:13,AGE:14,AD:15,REWARD:16,SPONSORINFO:17};
+const S={MENU:0,HELP:1,G1:2,OVER:3,SURVEY:4,ENTRY:5,LB:6,BADGES:7,LOCKER:8,WELCOME:9,TRIVIA:10,COACH:11,INTRO:12,PYRAMID:13,AGE:14,AD:15,REWARD:16,SPONSORINFO:17,LEARN:18,GEAR:19};
 let welcomed=false; try{ welcomed=!!localStorage.getItem('lax4_welcome'); }catch(e){}
 // ---- age gate + sponsor ads (intended sponsors: licensed dispensaries, Tonawanda Seneca Nation, Basom NY) ----
 const AGE_MIN=21;   // NY legal adult-use age; only 21+ see sponsor messages
@@ -486,12 +486,10 @@ const M_TILES=[
 ];
 const UPDATE_BTN={x:40,y:H-44,w:W-80,h:22};
 const ADVERTISE_BTN={x:18,y:472,w:W-36,h:22};  // "advertise here" (redeem-code button removed)
-const COACH_BTN={x:18,y:418,w:W-36,h:24};        // featured "Coach's Favorite Player" banner
-const PYRAMID_BTN={x:18,y:446,w:W-36,h:24};      // featured "Pyramid of Lacrosse Success" banner
-const COACH_I=2+M_TILES.length;                  // keyboard-nav index for the coach banner
-const PYRAMID_I=COACH_I+1;                        // keyboard-nav index for the pyramid banner
-const PRACTICE_I=PYRAMID_I+1;                     // keyboard-nav index for the practice button
-function menuActivate(i){ SFX.start(); if(i===0) startGame('shootout'); else if(i===1) startGame('field'); else if(i-2<M_TILES.length) M_TILES[i-2].go(); else if(i===COACH_I) state=S.COACH; else if(i===PYRAMID_I) state=S.PYRAMID; else startGame('practice'); }
+const LEARN_BTN={x:18,y:432,w:W-36,h:26};        // "Lacrosse 101" hub -> info screens
+const LEARN_I=2+M_TILES.length;                  // keyboard-nav index for the learn banner
+const PRACTICE_I=LEARN_I+1;                       // keyboard-nav index for the practice button
+function menuActivate(i){ SFX.start(); if(i===0) startGame('shootout'); else if(i===1) startGame('field'); else if(i-2<M_TILES.length) M_TILES[i-2].go(); else if(i===LEARN_I) state=S.LEARN; else startGame('practice'); }
 function menuUpdate(){ let p; while((p=consumeTap())){
   if(updateReady && p.x>=0 && hit(p,UPDATE_BTN)){ doUpdate(); return; }
   if(p.x<0){ menuActivate(menuSel); return; }
@@ -500,11 +498,10 @@ function menuUpdate(){ let p; while((p=consumeTap())){
   if(hit(p,M_PLAY2)){ menuSel=1; menuActivate(1); return; }
   for(let i=0;i<3;i++){ if(hit(p,M_DIFF[i])){ PROFILE.diff=i; profSave(); SFX.ui(); return; } }
   for(let i=0;i<M_TILES.length;i++){ if(hit(p,M_TILES[i].r)){ menuSel=i+2; menuActivate(i+2); return; } }
-  if(hit(p,COACH_BTN)){ menuSel=COACH_I; menuActivate(COACH_I); return; }
-  if(hit(p,PYRAMID_BTN)){ menuSel=PYRAMID_I; menuActivate(PYRAMID_I); return; }
+  if(hit(p,LEARN_BTN)){ menuSel=LEARN_I; menuActivate(LEARN_I); return; }
   if(!updateReady && hit(p,ADVERTISE_BTN)){ SFX.ui(); state=S.SPONSORINFO; return; }
 }
-  const n=5+M_TILES.length;
+  const n=4+M_TILES.length;
   if(keys.aimU){ menuSel=(menuSel+n-1)%n; keys.aimU=false; }
   if(keys.aimD){ menuSel=(menuSel+1)%n; keys.aimD=false; }
 }
@@ -553,14 +550,12 @@ function drawMenu(){
     drawText(t.label, r.x+(r.w-textW(t.label,1.15))/2, r.y+r.h-17, 1.15, C.cream);
     if(t.label==='SHARE') shareBtn={x:r.x,y:r.y,w:r.w,h:r.h,score:0};
   }
-  // featured "learn" banners (gold) - tap to open an info screen
-  [[COACH_BTN,COACH_I,"COACH'S FAVORITE PLAYER"],[PYRAMID_BTN,PYRAMID_I,'PYRAMID OF LACROSSE SUCCESS']].forEach(([b,idx,cl])=>{
-    const sel=(menuSel===idx);
+  // "LACROSSE 101" hub banner (gold) - opens the info screens
+  { const b=LEARN_BTN, sel=(menuSel===LEARN_I);
     tileBox(b.x,b.y,b.w,b.h, sel?'rgba(70,54,18,0.96)':'rgba(46,36,14,0.92)', C.gold);
-    const clw=textW(cl,1.0), clx=b.x+(b.w-clw)/2;
-    drawText(cl, clx, b.y+7, 1.0, C.gold);
-    tStar(clx-10, b.y+12, 4.5, C.gold); tStar(clx+clw+10, b.y+12, 4.5, C.gold);
-  });
+    const cl='LACROSSE 101 - LEARN THE GAME', clw=textW(cl,1.0), clx=b.x+(b.w-clw)/2;
+    drawText(cl, clx, b.y+8, 1.0, C.gold);
+    tStar(clx-10, b.y+13, 4.5, C.gold); tStar(clx+clw+10, b.y+13, 4.5, C.gold); }
   if(updateReady){ const b=UPDATE_BTN, fl=frame%20<12;
     tileBox(b.x,b.y,b.w,b.h, fl?'#1f9a54':'#15723e', C.white);
     const tt='! UPDATE AVAILABLE - TAP'; drawText(tt,b.x+(b.w-textW(tt,1.1))/2,b.y+6,1.1,C.white);
@@ -1012,8 +1007,8 @@ function drawToasts(){
   if(toastT>150){ toasts.shift(); toastT=0; }
 }
 const SHARE_URL='https://michaeltholland.github.io/agent-mode/';
-const APP_VERSION='4.0';     // bump every deploy; the update check compares against the live file
-const WHATS_NEW='NEW-LEADER ALERTS + MORE TRIVIA';   // one-line highlight shown on the update prompt
+const APP_VERSION='4.1';     // bump every deploy; the update check compares against the live file
+const WHATS_NEW='LACROSSE 101 HUB + GEAR GUIDE';   // one-line highlight shown on the update prompt
 let updateReady=false, updateNote='';
 function updateCheck(){
   if(typeof fetch!=='function') return;
@@ -1498,7 +1493,7 @@ const COACH_TRAITS=[
   {name:'COMPETITIVE', desc:'Fights for every ball to the whistle.'},
   {name:'CONSISTENCY', desc:'Steady effort the whole season long.'}
 ];
-function coachUpdate(){ let p; while((p=consumeTap())){ SFX.ui(); state=S.MENU; return; } }
+function coachUpdate(){ let p; while((p=consumeTap())){ SFX.ui(); state=S.LEARN; return; } }
 function drawCoach(){
   vgrad(0,0,W,H,'#10204a','#040814');
   ctx.fillStyle=C.panelHi; ctx.fillRect(12,12,80,36); ctx.fillStyle=C.dgrey; ctx.fillRect(12,12,80,3);
@@ -1526,7 +1521,59 @@ const PYRAMID_LEVELS=[
   {name:'MENTAL TOUGHNESS',desc:'Composed under pressure; compete every play.'},
   {name:'EXCELLENCE',      desc:'High-level play, leadership, winning impact.'}
 ];
-function pyramidUpdate(){ let p; while((p=consumeTap())){ SFX.ui(); state=S.MENU; return; } }
+function pyramidUpdate(){ let p; while((p=consumeTap())){ SFX.ui(); state=S.LEARN; return; } }
+// ---- LACROSSE 101 hub: a list of info screens (scales as we add infographics) ----
+const LEARN_TOPICS=[
+  {label:"COACH'S FAVORITE PLAYER", go:S.COACH},
+  {label:'PYRAMID OF SUCCESS', go:S.PYRAMID},
+  {label:'GEAR GUIDE - BEFORE YOU BUY', go:S.GEAR}
+];
+function learnRow(i){ return {x:22,y:120+i*56,w:W-44,h:46}; }
+function learnUpdate(){ let p; while((p=consumeTap())){
+  if(hit(p,{x:12,y:12,w:80,h:36})){ SFX.ui(); state=S.MENU; return; }
+  for(let i=0;i<LEARN_TOPICS.length;i++){ if(hit(p,learnRow(i))){ SFX.ui(); state=LEARN_TOPICS[i].go; return; } }
+} }
+function drawLearn(){
+  vgrad(0,0,W,H,'#10204a','#040814');
+  ctx.fillStyle=C.panelHi; ctx.fillRect(12,12,80,36); ctx.fillStyle=C.dgrey; ctx.fillRect(12,12,80,3);
+  glyph('LT',20,22,3,C.cream); drawText('BACK',36,23,2,C.cream);
+  textCS('LACROSSE 101',58,2.6,C.gold,C.black);
+  textC('TAP A TOPIC TO LEARN',92,1.1,C.green);
+  for(let i=0;i<LEARN_TOPICS.length;i++){ const r=learnRow(i);
+    tileBox(r.x,r.y,r.w,r.h,'rgba(22,30,52,0.95)',C.gold);
+    drawText(LEARN_TOPICS[i].label, r.x+(r.w-textW(LEARN_TOPICS[i].label,1.1))/2, r.y+(r.h-8)/2, 1.1, C.cream); }
+  textCS('TAP BACK TO RETURN',H-20,1,C.cream,C.black);
+}
+// ---- GEAR GUIDE info screen (content credit: Global Lacrosse) ----
+const EQUIP=[
+  {n:'STICK FIRST',      d:'Most important piece'},
+  {n:'GEAR BY POSITION', d:'Attack/D/goalie differ'},
+  {n:'HELMET FIT',       d:'Level, secure, safe'},
+  {n:'GLOVES',           d:'Protect + keep control'},
+  {n:'SHOULDER PADS',    d:'Protect, move freely'},
+  {n:'ARM PADS',         d:'Depends on position'},
+  {n:'MOUTHGUARD',       d:'Required, protects teeth'},
+  {n:'CLEATS',           d:'Traction and cuts'},
+  {n:'GOALIE GEAR',      d:'Needs extra protection'},
+  {n:'LEAGUE RULES',     d:'Check before buying'},
+  {n:'COMFORT',          d:'Helps you learn'},
+  {n:'START SIMPLE',     d:'Upgrade as you grow'}
+];
+function gearUpdate(){ let p; while((p=consumeTap())){ SFX.ui(); state=S.LEARN; return; } }
+function drawGear(){
+  vgrad(0,0,W,H,'#10204a','#040814');
+  ctx.fillStyle=C.panelHi; ctx.fillRect(12,12,80,36); ctx.fillStyle=C.dgrey; ctx.fillRect(12,12,80,3);
+  glyph('LT',20,22,3,C.cream); drawText('BACK',36,23,2,C.cream);
+  textCS('BEFORE YOU BUY',52,2.0,C.gold,C.black);
+  textC('BEGINNER GEAR CHECKLIST',76,0.95,C.green);
+  for(let i=0;i<EQUIP.length;i++){ const col=i<6?0:1, row=i%6, x=col?W/2+4:14, y=98+row*66;
+    drawText((i+1<10?'0':'')+(i+1), x, y+1, 1.1, C.gold);
+    drawText(EQUIP[i].n, x+22, y, 1.0, C.yellow);
+    drawText(EQUIP[i].d, x+22, y+13, 0.8, C.cream);
+  }
+  textC('SOURCE: GLOBAL LACROSSE',H-40,1.0,C.grey);
+  textCS('TAP TO RETURN',H-18,1,C.cream,C.black);
+}
 function drawPyramid(){
   vgrad(0,0,W,H,'#10204a','#040814');
   ctx.fillStyle=C.panelHi; ctx.fillRect(12,12,80,36); ctx.fillStyle=C.dgrey; ctx.fillRect(12,12,80,3);
@@ -1677,6 +1724,8 @@ function frameStep(){
   else if(state===S.BADGES){ badgesUpdate(); drawBadges(); }
   else if(state===S.COACH){ coachUpdate(); drawCoach(); }
   else if(state===S.PYRAMID){ pyramidUpdate(); drawPyramid(); }
+  else if(state===S.LEARN){ learnUpdate(); drawLearn(); }
+  else if(state===S.GEAR){ gearUpdate(); drawGear(); }
   else if(state===S.SPONSORINFO){ sponsorInfoUpdate(); drawSponsorInfo(); }
   drawToasts();
   ctx.globalAlpha=0.05; ctx.fillStyle='#000'; for(let y=0;y<H;y+=3) ctx.fillRect(0,y,W,1); ctx.globalAlpha=1;
