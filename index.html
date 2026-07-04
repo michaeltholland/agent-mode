@@ -225,6 +225,19 @@ let LB=[], LBTOTAL=0;     // LBTOTAL = total players worldwide (for the top-30% 
 try{ LB=JSON.parse(localStorage.getItem('lax4_lb')||'[]')||[]; if(!Array.isArray(LB)) LB=[]; }catch(e){ LB=[]; }
 LBTOTAL=LB.length;
 function lbSave(){ try{ localStorage.setItem('lax4_lb',JSON.stringify(LB)); }catch(e){} }
+// world-record "champion" tracking: notify everyone when a new #1 is crowned
+let champ=null; try{ champ=JSON.parse(localStorage.getItem('lax4_champ')||'null'); }catch(e){ champ=null; }
+let crownMsg=null;   // {n,s} of a freshly-crowned leader, waiting to be announced
+function saveChamp(){ try{ localStorage.setItem('lax4_champ',JSON.stringify(champ)); }catch(e){} }
+function checkChampion(){   // called after the world board loads/updates
+  if(!LB.length) return;
+  const top=LB[0];
+  if(champ && top.s>champ.s && top.n!==(PROFILE.initials||'').toUpperCase()){   // someone else broke the record
+    crownMsg={n:top.n,s:top.s};
+    pushToast(top.n+' - '+top.s+' PTS','NEW LEADER CROWNED');
+  }
+  if(!champ || top.s>=champ.s){ champ={n:top.n,s:top.s}; saveChamp(); }   // remember the current #1
+}
 function lbQualifies(s){ return s>0 && (LB.length<10 || s>LB[LB.length-1].s); }
 function lbInsert(n,s){ LB.push({n:n,s:s}); LB.sort((a,b)=>b.s-a.s); LB=LB.slice(0,60); lbSave(); return LB.indexOf(LB.find(e=>e.n===n&&e.s===s)); }
 // rank titles: a new tier every 25 players - Six Nations (Haudenosaunee) clan animals, top down to lowest
@@ -245,7 +258,7 @@ function lbFetch(){
   lbStatus='loading';
   fetch(SUPA_URL+'/rest/v1/scores?select=name,score&order=score.desc&limit=60',{headers:Object.assign({Prefer:'count=exact'},SUPA_HEAD)})
     .then(res=>{ if(!res.ok) return Promise.reject(res.status); const cr=res.headers&&res.headers.get&&res.headers.get('content-range'); LBTOTAL=(cr&&cr.indexOf('/')>=0)?(parseInt(cr.split('/')[1])||0):0; return res.json(); })
-    .then(rows=>{ if(Array.isArray(rows)){ LB=rows.map(r=>({n:(''+r.name).slice(0,3).toUpperCase(),s:r.score|0})); if(!LBTOTAL) LBTOTAL=LB.length; lbSave(); lbStatus='global'; } })
+    .then(rows=>{ if(Array.isArray(rows)){ LB=rows.map(r=>({n:(''+r.name).slice(0,3).toUpperCase(),s:r.score|0})); if(!LBTOTAL) LBTOTAL=LB.length; lbSave(); lbStatus='global'; checkChampion(); } })
     .catch(()=>{ lbStatus='offline'; });
 }
 function lbSubmit(name,score){
@@ -963,7 +976,9 @@ let over={score:0,best:0,nb:false,t:0};
 let entry={ini:[0,0,0],score:0};
 let lb={from:'MENU',newRank:-1,mine:null,page:0};
 function lbOpen(from){ lb.from=from; lb.page=0; if(from!=='GAME') lb.mine=null; lbFetch(); state=S.LB; }
-function submitScore(name,score){ lbInsert(name,score); lb.mine={n:name,s:score}; lb.from='GAME'; lbSubmit(name,score); }
+function submitScore(name,score){ lbInsert(name,score);
+  if(!champ || score>=champ.s){ champ={n:(''+name).slice(0,3).toUpperCase(),s:score}; saveChamp(); }   // you took the crown yourself - don't self-announce
+  lb.mine={n:name,s:score}; lb.from='GAME'; lbSubmit(name,score); }
 function endGame(score){ over.score=score; over.t=0; over.best=HI.g1; over.nb=false;
   if(score>HI.g1){ over.nb=true; HI.g1=score; over.best=score; saveHi(); spawn(W/2,180,40,[C.yellow,C.green,C.gold,C.white]); }
   STATS.games++; STATS.goals+=G1.goals; STATS.bestCombo=Math.max(STATS.bestCombo,G1.maxCombo);
@@ -997,8 +1012,8 @@ function drawToasts(){
   if(toastT>150){ toasts.shift(); toastT=0; }
 }
 const SHARE_URL='https://michaeltholland.github.io/agent-mode/';
-const APP_VERSION='3.9';     // bump every deploy; the update check compares against the live file
-const WHATS_NEW='TARGET MOVES EVERY SHOT';   // one-line highlight shown on the update prompt
+const APP_VERSION='4.0';     // bump every deploy; the update check compares against the live file
+const WHATS_NEW='NEW-LEADER ALERTS + MORE TRIVIA';   // one-line highlight shown on the update prompt
 let updateReady=false, updateNote='';
 function updateCheck(){
   if(typeof fetch!=='function') return;
@@ -1272,11 +1287,13 @@ function drawSponsorInfo(){
   if(frame%24<16) textCS('TAP TO RETURN',H-26,1.5,C.yellow,C.black);
 }
 // ====================== TOP 10 SPLASH (shown once at login) ======================
-function introUpdate(){ let p; while((p=consumeTap())){ SFX.ui(); state=S.MENU; return; } }
+function introUpdate(){ let p; while((p=consumeTap())){ crownMsg=null; SFX.ui(); state=S.MENU; return; } }
 function drawIntro(){
   vgrad(0,0,W,H,'#10204a','#040814');
   textCS('TOP 10',40,3.2,C.gold,C.black);
-  textC(lbStatus==='loading'?'LOADING WORLD BOARD...':'GLOBAL LEADERBOARD',82,1.2,C.green);
+  if(crownMsg){ textCS('NEW LEADER CROWNED!',72,1.6,(frame%16<10?C.gold:C.yellow),C.black);
+    textC(crownMsg.n+'  -  '+crownMsg.s+' PTS',94,1.25,C.cream); }
+  else textC(lbStatus==='loading'?'LOADING WORLD BOARD...':'GLOBAL LEADERBOARD',82,1.2,C.green);
   const n=Math.min(10,LB.length);
   if(n===0){ textC('NO SCORES YET -',236,1.4,C.cream); textC('BE THE FIRST TO MAKE THE BOARD!',262,1.4,C.yellow); }
   else { let y=110; for(let i=0;i<n;i++){ const e=LB[i], rank=i+1, col=tierColor(rank);
@@ -1347,9 +1364,37 @@ const PYRAMID_Q=[
   {q:'STAYING COMPOSED UNDER PRESSURE IS...',opts:['MENTAL TOUGHNESS','LUCK','IMPOSSIBLE'],ans:0,fact:'MENTAL TOUGHNESS - COMPOSED, COMPETE EVERY POSSESSION.'},
   {q:'THE PEAK OF THE PYRAMID IS...',opts:['EXCELLENCE','FUNDAMENTALS','THE BENCH'],ans:0,fact:'EXCELLENCE - HIGH-LEVEL PLAY, LEADERSHIP, WINNING IMPACT.'}
 ];
+// vision vs stick skills + "why the best players look slow" - content credit: Global Lacrosse
+const VISION_Q=[
+  {q:'FIELD VISION STARTS WITH...',opts:['READING THE FIELD EARLY','RUNNING FASTER','YELLING LOUDER'],ans:0,fact:'VISION - READ THE FIELD BEFORE YOU GET THE BALL.'},
+  {q:'A PLAYER WITH VISION SPOTS...',opts:['OPEN TEAMMATES EARLY','ONLY THE GOAL','NOTHING'],ans:0,fact:'VISION - IDENTIFY OPEN TEAMMATES EARLY.'},
+  {q:'GOOD VISION ANTICIPATES...',opts:['DEFENSIVE ROTATIONS','THE WEATHER','THE CROWD'],ans:0,fact:'VISION - ANTICIPATE DEFENSIVE ROTATIONS.'},
+  {q:'VISION HELPS YOU RECOGNIZE...',opts:['SCORING CHANCES','EXCUSES','NOTHING'],ans:0,fact:'VISION - RECOGNIZE SCORING OPPORTUNITIES.'},
+  {q:'STRONG VISION LEADS TO...',opts:['FASTER DECISIONS','SLOWER PLAY','MORE TURNOVERS'],ans:0,fact:'VISION - MAKE FASTER GAME DECISIONS.'},
+  {q:'OVERALL, VISION BUILDS YOUR...',opts:['LACROSSE IQ','SHOE SIZE','HIGHLIGHT REEL'],ans:0,fact:'VISION - IT IMPROVES YOUR OVERALL LACROSSE IQ.'}
+];
+const STICKS_Q=[
+  {q:'ELITE STICK SKILLS CONTROL THE BALL...',opts:['CLEANLY UNDER PRESSURE','ONLY WHEN ALONE','NEVER'],ans:0,fact:'STICK SKILLS - CONTROL THE BALL CLEANLY UNDER PRESSURE.'},
+  {q:'GOOD STICK SKILLS DELIVER...',opts:['ACCURATE PASSES','WILD THROWS','EXCUSES'],ans:0,fact:'STICK SKILLS - DELIVER ACCURATE PASSES CONSISTENTLY.'},
+  {q:'STICK SKILLS LET YOU CATCH...',opts:['DIFFICULT PASSES','ONLY EASY ONES','NOTHING'],ans:0,fact:'STICK SKILLS - CATCH DIFFICULT PASSES EFFECTIVELY.'},
+  {q:'STRONG STICK SKILLS SHOOT WITH...',opts:['POWER AND ACCURACY','EYES CLOSED','NO AIM'],ans:0,fact:'STICK SKILLS - SHOOT WITH POWER AND ACCURACY.'},
+  {q:'STICK SKILLS PROTECT POSSESSION...',opts:['DURING CONTACT','ONLY AT HOME','NEVER'],ans:0,fact:'STICK SKILLS - PROTECT POSSESSION DURING CONTACT.'},
+  {q:'TRUE STICK SKILLS HOLD UP...',opts:['AT GAME SPEED','ONLY IN WARMUPS','NEVER'],ans:0,fact:'STICK SKILLS - PERFORM CONSISTENTLY AT GAME SPEED.'}
+];
+const SLOW_Q=[
+  {q:'THE BEST PLAYERS LOOK SLOW BECAUSE THEY...',opts:['THINK FASTER','GIVE UP','RUN LESS FOR FUN'],ans:0,fact:'THE BEST PLAYERS THINK FASTER, THEY DONT JUST MOVE FASTER.'},
+  {q:'ELITE PLAYERS GET TO THE RIGHT SPOT...',opts:['EARLY','LATE','NEVER'],ans:0,fact:'THEY PLAY BEFORE THE BALL ARRIVES - SCAN AND ANTICIPATE.'},
+  {q:'ELITE MOVEMENT HAS...',opts:['A PURPOSE','NO REASON','WASTED STEPS'],ans:0,fact:'THEY MOVE WITH PURPOSE - NO WASTED MOTION.'},
+  {q:'UNDER PRESSURE THE BEST STAY...',opts:['CALM','PANICKED','FROZEN'],ans:0,fact:'THEY STAY CALM AND CONTROL THE PACE OF PLAY.'},
+  {q:'ELITE PLAYERS LET THE GAME...',opts:['COME TO THEM','PASS THEM BY','GET RUSHED'],ans:0,fact:'THEY LET THE GAME COME TO THEM - TAKE WHAT THE D GIVES.'},
+  {q:'THEY CREATE ADVANTAGES WITHOUT...',opts:['EXTRA SPEED','THINKING','TEAMMATES'],ans:0,fact:'THEY THINK FASTER THAN THEY RUN - IQ OVER RAW SPEED.'}
+];
 const TEACH_POOL=TRIVIA_Q.map((it,i)=>({q:it.q,opts:it.opts,ans:it.ans,fact:it.fact,key:'t'+i,topic:'LACROSSE FACT'}))
   .concat(COACH_Q.map((it,i)=>({q:it.q,opts:it.opts,ans:it.ans,fact:it.fact,key:'c'+i,topic:"COACH'S FAVORITE PLAYER"})))
-  .concat(PYRAMID_Q.map((it,i)=>({q:it.q,opts:it.opts,ans:it.ans,fact:it.fact,key:'p'+i,topic:'PYRAMID OF SUCCESS - GLOBAL LACROSSE'})));
+  .concat(PYRAMID_Q.map((it,i)=>({q:it.q,opts:it.opts,ans:it.ans,fact:it.fact,key:'p'+i,topic:'PYRAMID OF SUCCESS - GLOBAL LACROSSE'})))
+  .concat(VISION_Q.map((it,i)=>({q:it.q,opts:it.opts,ans:it.ans,fact:it.fact,key:'v'+i,topic:'FIELD VISION - GLOBAL LACROSSE'})))
+  .concat(STICKS_Q.map((it,i)=>({q:it.q,opts:it.opts,ans:it.ans,fact:it.fact,key:'k'+i,topic:'STICK SKILLS - GLOBAL LACROSSE'})))
+  .concat(SLOW_Q.map((it,i)=>({q:it.q,opts:it.opts,ans:it.ans,fact:it.fact,key:'s'+i,topic:'LOOK SLOW, PLAY SMART - GLOBAL LACROSSE'})));
 let teachState={}; try{ teachState=JSON.parse(localStorage.getItem('lax4_teach')||'{}')||{}; }catch(e){ teachState={}; }
 function tget(k){ if(!teachState[k]) teachState[k]={n:0,qz:0}; return teachState[k]; }
 function teachSave(){ try{ localStorage.setItem('lax4_teach',JSON.stringify(teachState)); }catch(e){} }
