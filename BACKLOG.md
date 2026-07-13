@@ -4,6 +4,34 @@ Running list of ideas to revisit. Nothing here is live yet.
 
 ## SAVED CONTENT — Global Lacrosse / Lacrosse IQ infographics (info screens + trivia)
 
+### "CAN YOU NAME THESE LACROSSE SHOTS?" (IMG_1541) — 10 shot types (credit: Lacrosse IQ)
+Great as trivia ("name the shot" from its description) AND a possible gameplay idea
+(different shot types with distinct feel). Info-screen candidate too.
+1.  OVERHAND — released above the shoulders for maximum accuracy (most fundamental).
+2.  SIDEARM — horizontal arm motion; lower angle, harder to save.
+3.  UNDERHAND — low release point; sneak under a defender's stick / surprise the goalie.
+4.  BOUNCE — intentionally bounced before the goal; changes direction, harder to stop.
+5.  QUICK STICK — one-touch catch-and-release right after a pass.
+6.  TIME-AND-ROOM — powerful shot with space/time to step into the release.
+7.  ON-THE-RUN — taken while sprinting toward/across goal; needs balance and control.
+8.  BACKHAND — released from the backhand side; useful in tight situations.
+9.  DIVE — shot while diving across the crease (legality varies by rules — NCAA/NFHS/World).
+10. BEHIND-THE-BACK (BTB) — advanced trick shot from behind the back; deception + skill.
+
+### "GOOD vs GREAT PLAYERS" (IMG_1533) — 10 traits (credit: Lacrosse IQ)
+Trivia-ready (great habit = correct answer), like the Coach/Elite sets.
+1.  FIELD VISION — good watches the ball; great scans the entire field.
+2.  DECISION MAKING — good reacts; great anticipates what happens next.
+3.  PASSING — good makes routine passes; great delivers accurate passes at the right time/pace.
+4.  OFF-BALL MOVEMENT — good waits for the ball; great creates space and cuts with purpose.
+5.  STICK SKILLS — good performs in practice; great executes consistently under game pressure.
+6.  DEFENSIVE EFFORT — good defends when necessary; great communicates, recovers, plays team D.
+7.  TRANSITION PLAY — good takes time to adjust; great switches instantly O to D.
+8.  MENTAL TOUGHNESS — good gets frustrated; great stays composed and responds positively.
+9.  CONSISTENCY — good has occasional great games; great performs high level game after game.
+10. WORK ETHIC — good practices; great trains with purpose and studies the game.
+
+
 ### "WHY THE BEST PLAYERS LOOK SLOW" (IMG_1417) — 7 points
 Tagline: "It's not about speed. It's about game." Key lesson: the best players look
 slow because they think faster, anticipate earlier, and make smarter decisions.

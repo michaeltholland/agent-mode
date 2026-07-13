@@ -646,6 +646,7 @@ function resolveObstacles(x,y){
 function g1Init(){
   G1.endless=(gameMode==='shootout'); G1.saves=0; G1.misses=0;   // shootout = endless: 3 saves OR 3 missed targets = out
   G1.prevBest=HI.g1; G1.beatBest=false; G1.bestT=0;   // live "new high score!" celebration
+  G1.trail=[]; G1.flashT=0; G1.flashCol=C.white; G1.ripple=null;   // juice: ball trail, impact flash, net ripple
   G1.shots=10; G1.score=0; G1.goals=0;
   G1.aimX=AIM_CX; G1.aimY=AIM_CY;
   G1.gk={x:AIM_CX,idealX:AIM_CX,bw:60,bh:134,reach:14,lunge:0};
@@ -720,10 +721,11 @@ function g1Fire(){
     const d=dist(sx,sy,tx,ty)||1;
     G1.ball={x:sx,y:sy,vx:(tx-sx)/d*spd,vy:(ty-sy)/d*spd,tx,ty,t:0,total:Math.max(8,d/spd)};
   }
-  G1.phase='fly'; G1.shots--; G1.gk.lunge=0; sR.dx=0; sR.dy=0; SFX.shoot();
+  G1.phase='fly'; G1.shots--; G1.gk.lunge=0; sR.dx=0; sR.dy=0; G1.trail=[]; SFX.shoot();
 }
 function g1Update(){
   if(G1.msgT>0) G1.msgT--; if(G1.tauntT>0) G1.tauntT--; if(G1.levelUp>0) G1.levelUp--; if(G1.callT>0) G1.callT--; if(G1.bestT>0) G1.bestT--; G1.shake*=0.82;
+  if(G1.flashT>0) G1.flashT--; if(G1.ripple){ if(--G1.ripple.t<=0) G1.ripple=null; }
   // difficulty: ENDLESS ramps slowly with success (+1% every 2 goals); practice/field ramp over their 10 shots
   const ramp = G1.endless ? 0.01*Math.floor(G1.goals/2) : ((gameMode==='field'?0:-0.12) + (10-G1.shots)/9);
   const d=clamp(diffFactor() + ramp, 0, 1.6);
@@ -781,6 +783,7 @@ function g1Update(){
       else { const k=(u-tb)/(1-tb); b.x=b.bnX+(b.tx-b.bnX)*k; b.y=b.bnY+(b.ty-b.bnY)*k; }
       if(!b.scuffed && u>=tb){ b.scuffed=true; G1.shake=4; spawn(b.bnX,b.bnY,10,[C.grass3,C.grass2,C.cream]); }
     } else { b.x+=b.vx; b.y+=b.vy; }
+    G1.trail.push({x:b.x,y:b.y}); if(G1.trail.length>10) G1.trail.shift();   // motion trail
     const lc=(1.25+d*0.95)*(b.bnc?0.38:1); const dx=b.tx-gk.x; gk.x=clamp(gk.x+clamp(dx,-lc,lc),mn,mx); gk.lunge=clamp(dx*0.4,-6,6);
     // a DEFENDER in the lane may block the shot - ~30% chance, rolled once per defender per shot
     if(b.t>4){ for(let pi=0;pi<players.length;pi++){ const pl=players[pi];
@@ -805,6 +808,7 @@ function g1Update(){
         b.bounce=true;   // sails on past the net
       } else if(g1Covered(b.tx,b.ty,gk)){
         G1.msg='SAVE!'; G1.msgC=C.red; G1.msgT=64; G1.shake=6; SFX.save(); G1.streak=0;
+        G1.flashCol=C.red; G1.flashT=8;   // juice: red denial flash
         if(G1.endless){ G1.saves++; if(G1.saves>=3){ G1.msg='3 SAVES - GAME OVER!'; G1.msgT=90; } else G1.msg='SAVE! '+G1.saves+'/3'; }
         G1.taunt=TAUNTS[(Math.random()*TAUNTS.length)|0]; G1.tauntT=60;   // keeper trash talk
         b.vx=-b.vx*0.3; b.vy=2.6; b.bounce=true;
@@ -835,6 +839,8 @@ function g1Update(){
           spawn(b.x,b.y,hot?30:(five?28:20),hot?[C.gold,C.red,C.yellow,C.white]:(five?[C.gold,C.yellow,C.white]:[C.green,C.yellow,C.white]));
           if(hot) beep(700+G1.streak*60,0.1,'square',0.05);
           (pts>=5||hot)?SFX.big():SFX.goal(); b.dead=true;
+          G1.flashCol=(hot||five)?C.gold:C.green; G1.flashT=hot?14:10;   // juice: goal flash
+          G1.ripple={x:b.tx,y:b.ty,t:22}; G1.shake=Math.max(G1.shake,hot?8:5);   // net ripple + punch
           // ---- TARGET CHALLENGE: light up the zone we just hit ----
           if(onTarget && !G1.tc.done[z]){
             G1.tc.done[z]=true; PROFILE.coins+=5;
@@ -905,11 +911,19 @@ function g1Draw(){
     }
     ctx.strokeStyle='rgba(255,255,255,0.22)'; ctx.setLineDash([4,4]); ctx.beginPath(); ctx.moveTo(G1.shooterX,G1.shooterY-44); ctx.lineTo(G1.aimX,G1.aimY); ctx.stroke(); ctx.setLineDash([]);
   }
+  // juice: ball motion trail
+  if(G1.trail&&G1.trail.length && G1.phase==='fly'){ for(let i=0;i<G1.trail.length;i++){ const t=G1.trail[i], a=(i+1)/G1.trail.length;
+    ctx.globalAlpha=a*0.5; ctx.fillStyle=C.white; ctx.beginPath(); ctx.arc(t.x,t.y,1+a*2.5,0,7); ctx.fill(); } ctx.globalAlpha=1; }
+  // juice: net ripple where the ball crossed the line
+  if(G1.ripple){ const p=1-G1.ripple.t/22; ctx.globalAlpha=(1-p)*0.9; ctx.strokeStyle=C.white; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.arc(G1.ripple.x,G1.ripple.y,4+p*22,0,7); ctx.stroke(); ctx.globalAlpha=1; }
   if(G1.ball&&!G1.ball.dead) drawBall(G1.ball.x,G1.ball.y,4);
   drawParts();
   drawShooter(G1.shooterX,G1.shooterY,G1.phase==='fly'&&frame%4<2);
   if(G1.phase==='foul') drawRef(G1.foulT);
   ctx.restore();
+  // juice: impact flash tint (fades out)
+  if(G1.flashT>0){ ctx.globalAlpha=(G1.flashT/14)*0.3; ctx.fillStyle=G1.flashCol; ctx.fillRect(0,0,W,H); ctx.globalAlpha=1; }
   // twin joysticks
   const la=sL.id!==null||keys.moveL||keys.moveR;
   const ra=sR.id!==null||keys.aimL||keys.aimR||keys.aimU||keys.aimD;
@@ -1007,8 +1021,8 @@ function drawToasts(){
   if(toastT>150){ toasts.shift(); toastT=0; }
 }
 const SHARE_URL='https://michaeltholland.github.io/agent-mode/';
-const APP_VERSION='4.1';     // bump every deploy; the update check compares against the live file
-const WHATS_NEW='LACROSSE 101 HUB + GEAR GUIDE';   // one-line highlight shown on the update prompt
+const APP_VERSION='4.2';     // bump every deploy; the update check compares against the live file
+const WHATS_NEW='JUICIER GOALIE GAME - TRAILS & FLASHES';   // one-line highlight shown on the update prompt
 let updateReady=false, updateNote='';
 function updateCheck(){
   if(typeof fetch!=='function') return;
