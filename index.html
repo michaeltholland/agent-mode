@@ -76,6 +76,9 @@ resize();
 const C={
   skyTop:'#3a6ea5',skyBot:'#9ed0ee',
   grass1:'#2f9e44',grass2:'#268c3a',grass3:'#1f7a31',
+  turfLo:'#1e8a3e',turfHi:'#25a049',turfDk:'#0b3c1c',chalk:'rgba(255,255,255,0.6)',navy:'#0d1b3e',
+  meshHi:'rgba(255,255,255,0.22)',netBg:'#08120c',
+  gkPad:'#e8ecf5',gkPadSh:'#aeb8d0',gkBody:'#243a6b',cage:'#181c24',
   orange:'#ff8a1e',orangeHi:'#ffb347',orangeDk:'#c75a00',
   mesh:'rgba(255,255,255,0.30)',
   gk:'#e23b4e',gkHi:'#ff6276',gkDk:'#8d1f2c',pad:'#f0f2ff',
@@ -363,37 +366,39 @@ function drawRef(t){
 }
 function drawGoalie(x,baseY,bw,bh,lunge,fh,fhOpen){
   const top=baseY-bh, upperH=Math.round(bh*0.52), legTop=top+upperH, gap=18, legW=(bw-gap)/2;
-  // chest / upper body (solid, covers high)
-  ctx.fillStyle=C.gkDk; ctx.fillRect(x-bw/2, top, bw, upperH+4);
-  ctx.fillStyle=C.gk;   ctx.fillRect(x-bw/2, top, bw, upperH);
-  ctx.fillStyle=C.gkHi; ctx.fillRect(x-bw/2, top, bw, 4);
-  ctx.fillStyle=C.pad;  ctx.fillRect(x-bw/2+5, top+12, bw-10, 20);
-  ctx.fillStyle=C.gkDk; ctx.fillRect(x-3, top+12, 6, 20);
-  // shoulders / arms
-  ctx.fillStyle=C.gk; ctx.fillRect(x-bw/2-6, top+6, 7, 22); ctx.fillRect(x+bw/2-1, top+6, 7, 22);
-  ctx.fillStyle=C.gkDk; ctx.fillRect(x-bw/2-6, top+24, 7, 4); ctx.fillRect(x+bw/2-1, top+24, 7, 4);
-  // lower body. OPEN = legs apart with a clean gap (the five hole); SHUT = legs together (solid)
-  if(fhOpen){
-    ctx.fillStyle=C.gkDk; ctx.fillRect(x-bw/2, legTop, legW, baseY-legTop); ctx.fillRect(x+gap/2, legTop, legW, baseY-legTop);
-    ctx.fillStyle=C.gk;   ctx.fillRect(x-bw/2+2, legTop, legW-4, baseY-legTop); ctx.fillRect(x+gap/2+2, legTop, legW-4, baseY-legTop);
-  } else {
-    ctx.fillStyle=C.gkDk; ctx.fillRect(x-bw/2, legTop, bw, baseY-legTop);
-    ctx.fillStyle=C.gk;   ctx.fillRect(x-bw/2+2, legTop, bw-4, baseY-legTop);
-    ctx.fillStyle=C.gkDk; ctx.fillRect(x-1, legTop, 2, baseY-legTop);   // thin center seam, not a leg gap
+  const PAD=C.gkPad, PADSH=C.gkPadSh, BODY=C.gkBody, TRIM=C.green;
+  // segmented white leg pads (behind everything)
+  function legPad(px,pw){
+    ctx.fillStyle=PADSH; ctx.fillRect(px, legTop, pw, baseY-legTop);
+    ctx.fillStyle=PAD;   ctx.fillRect(px+1, legTop, pw-2, baseY-legTop);
+    ctx.fillStyle=PADSH; for(let sy=legTop+7; sy<baseY-2; sy+=8){ ctx.fillRect(px+1, sy, pw-2, 2); }
   }
-  // head + helmet
-  ctx.fillStyle=C.skin; ctx.fillRect(x-6, top-13, 12, 12);
-  ctx.fillStyle=C.helmet; ctx.fillRect(x-8, top-16, 16, 10);
-  ctx.fillStyle=C.helmetSh; ctx.fillRect(x-8, top-7, 16, 2);
-  ctx.fillStyle=C.dgrey; ctx.fillRect(x-8, top-12, 3, 6);
-  // crosse raised HIGH overhead (covers the top of the net)
+  if(fhOpen){ legPad(x-bw/2, legW); legPad(x+gap/2, legW); }
+  else { legPad(x-bw/2, bw); ctx.fillStyle=PADSH; ctx.fillRect(x-1, legTop, 2, baseY-legTop); }
+  // chest protector: navy jersey base + light chest plate + center accent
+  ctx.fillStyle=BODY; ctx.fillRect(x-bw/2, top, bw, upperH+2);
+  ctx.fillStyle=PAD;  ctx.fillRect(x-bw/2+3, top+3, bw-6, upperH-6);
+  ctx.fillStyle=PADSH; ctx.fillRect(x-bw/2+3, top+3, bw-6, 3);
+  ctx.fillStyle=TRIM; ctx.fillRect(x-2, top+4, 4, upperH-8);
+  // shoulder caps + gloves
+  ctx.fillStyle=BODY; ctx.fillRect(x-bw/2-6, top+4, 8, 12); ctx.fillRect(x+bw/2-2, top+4, 8, 12);
+  ctx.fillStyle=PAD;  ctx.fillRect(x-bw/2-6, top+4, 8, 3);  ctx.fillRect(x+bw/2-2, top+4, 8, 3);
+  ctx.fillStyle=PAD;  ctx.fillRect(x-bw/2-7, top+18, 8, 9); ctx.fillRect(x+bw/2-1, top+18, 8, 9);
+  // helmet + facemask cage
+  ctx.fillStyle=C.helmet; ctx.fillRect(x-8, top-16, 16, 13);
+  ctx.fillStyle=PADSH;    ctx.fillRect(x-8, top-4, 16, 2);
+  ctx.fillStyle=TRIM;     ctx.fillRect(x-8, top-16, 16, 2);
+  ctx.strokeStyle=C.cage; ctx.lineWidth=1;
+  for(let cx=x-6; cx<=x+6; cx+=3){ ctx.beginPath(); ctx.moveTo(cx, top-14); ctx.lineTo(cx, top-4); ctx.stroke(); }
+  ctx.beginPath(); ctx.moveTo(x-8, top-8); ctx.lineTo(x+8, top-8); ctx.stroke();
+  // goalie stick raised overhead (big head covers high)
   const lx=lunge||0;
-  ctx.strokeStyle=C.shaft; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(x+bw/2, top+6); ctx.lineTo(x+lx, top-30); ctx.stroke();
-  ctx.fillStyle=C.orange; ctx.fillRect(x-7+lx, top-40, 14, 12); ctx.fillStyle=C.crosse; ctx.fillRect(x-6+lx, top-39, 12, 10);
-  // the five hole: open = a shootable lane between the legs (green); shut = faint red hint
+  ctx.strokeStyle=C.shaft; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(x+bw/2-2, top+8); ctx.lineTo(x+lx, top-30); ctx.stroke();
+  ctx.fillStyle=C.cage; ctx.fillRect(x-8+lx, top-42, 16, 14); ctx.fillStyle=PAD; ctx.fillRect(x-6+lx, top-40, 12, 10);
+  // five hole: open = shootable green lane; shut = faint red hint
   if(fh){
     if(fhOpen){ const lt=legTop;
-      ctx.fillStyle='#0c1a10'; ctx.fillRect(x-gap/2, lt, gap, baseY-lt);
+      ctx.fillStyle=C.netBg; ctx.fillRect(x-gap/2, lt, gap, baseY-lt);
       ctx.strokeStyle='rgba(120,235,150,0.9)'; ctx.lineWidth=2; ctx.strokeRect(x-gap/2+1, lt+1, gap-2, baseY-lt-2); }
     else { ctx.strokeStyle='rgba(255,70,90,0.30)'; ctx.lineWidth=1; ctx.beginPath(); ctx.arc(fh.x,fh.y,fh.r,0,7); ctx.stroke(); }
   }
@@ -404,18 +409,28 @@ function drawBackstop(r){
   for(let j=r.y-26;j<r.y+r.h+8;j+=9){ ctx.beginPath(); ctx.moveTo(r.x-30,j); ctx.lineTo(r.x+r.w+30,j); ctx.stroke(); }
 }
 function drawGoalFrame(r){
+  // soft drop shadow for depth
+  ctx.fillStyle='rgba(0,0,0,0.22)'; ctx.fillRect(r.x-9,r.y-27,r.w+24,r.h+42);
+  // outer posts + crossbar (orange, real lacrosse goal)
   ctx.fillStyle=C.orangeDk; ctx.fillRect(r.x-12,r.y-30,10,r.h+40); ctx.fillRect(r.x+r.w+2,r.y-30,10,r.h+40);
-  ctx.fillStyle=C.orange; ctx.fillRect(r.x-12,r.y-30,10,r.h+40); ctx.fillRect(r.x+r.w+2,r.y-30,10,r.h+40);
-  ctx.fillStyle=C.orange; ctx.fillRect(r.x-12,r.y-30,r.w+24,10); ctx.fillStyle=C.orangeHi; ctx.fillRect(r.x-12,r.y-30,r.w+24,3);
+  ctx.fillStyle=C.orange;   ctx.fillRect(r.x-11,r.y-30,8,r.h+40);  ctx.fillRect(r.x+r.w+3,r.y-30,8,r.h+40);
+  ctx.fillStyle=C.orangeHi; ctx.fillRect(r.x-11,r.y-30,3,r.h+40);  ctx.fillRect(r.x+r.w+3,r.y-30,3,r.h+40);
+  ctx.fillStyle=C.orangeDk; ctx.fillRect(r.x-12,r.y-30,r.w+24,10);
+  ctx.fillStyle=C.orange;   ctx.fillRect(r.x-12,r.y-29,r.w+24,7);
+  ctx.fillStyle=C.orangeHi; ctx.fillRect(r.x-12,r.y-30,r.w+24,3);
+  // inner mouth frame
   ctx.fillStyle=C.orangeDk; ctx.fillRect(r.x-5,r.y-5,r.w+10,r.h+10);
-  ctx.fillStyle=C.orange; ctx.fillRect(r.x-3,r.y-3,r.w+6,r.h+6);
+  ctx.fillStyle=C.orange;   ctx.fillRect(r.x-3,r.y-3,r.w+6,r.h+6);
   ctx.fillStyle=C.orangeHi; ctx.fillRect(r.x-3,r.y-3,r.w+6,3);
 }
 function drawMesh(r){
-  ctx.fillStyle='#0c1a10'; ctx.fillRect(r.x,r.y,r.w,r.h);
-  ctx.strokeStyle=C.mesh; ctx.lineWidth=1;
-  for(let i=r.x+5;i<r.x+r.w;i+=8){ ctx.beginPath(); ctx.moveTo(i,r.y); ctx.lineTo(i,r.y+r.h); ctx.stroke(); }
-  for(let j=r.y+5;j<r.y+r.h;j+=8){ ctx.beginPath(); ctx.moveTo(r.x,j); ctx.lineTo(r.x+r.w,j); ctx.stroke(); }
+  ctx.fillStyle=C.netBg; ctx.fillRect(r.x,r.y,r.w,r.h);
+  ctx.save(); ctx.beginPath(); ctx.rect(r.x,r.y,r.w,r.h); ctx.clip();   // diamond net (clipped to the mouth)
+  ctx.strokeStyle=C.meshHi; ctx.lineWidth=1;
+  for(let o=-r.h;o<r.w;o+=9){ ctx.beginPath(); ctx.moveTo(r.x+o,r.y); ctx.lineTo(r.x+o+r.h,r.y+r.h); ctx.stroke(); }
+  for(let o=0;o<r.w+r.h;o+=9){ ctx.beginPath(); ctx.moveTo(r.x+o,r.y); ctx.lineTo(r.x+o-r.h,r.y+r.h); ctx.stroke(); }
+  ctx.restore();
+  ctx.fillStyle='rgba(255,255,255,0.05)'; ctx.fillRect(r.x,r.y,r.w,r.h*0.35);   // slight sheen up top
 }
 function drawBtn(r,active){
   ctx.fillStyle=active?C.btnA:C.btn; ctx.fillRect(r.x,r.y,r.w,r.h);
@@ -868,9 +883,14 @@ function g1Update(){
 }
 function g1Draw(){
   const sh=(G1.shake*((frame%2)?1:-1))|0;
-  vgrad(0,0,W,H,C.skyTop,C.skyBot);
-  ctx.fillStyle=C.grass1; ctx.fillRect(0,150,W,H-150);
-  for(let i=0;i<8;i++){ ctx.fillStyle=i%2?C.grass2:C.grass3; ctx.fillRect(0,160+i*20,W,10); }
+  // premium mowed turf: alternating stripes + depth shading behind the goal
+  ctx.fillStyle=C.turfLo; ctx.fillRect(0,0,W,H);
+  for(let i=0;i<Math.ceil(H/26);i++){ if(i%2){ ctx.fillStyle=C.turfHi; ctx.fillRect(0,i*26,W,26); } }
+  ctx.fillStyle='rgba(6,26,12,0.30)'; ctx.fillRect(0,0,W,52);           // shaded end zone behind the cage
+  ctx.fillStyle='rgba(0,0,0,0.10)'; ctx.fillRect(0,H-40,W,40);          // subtle near-field shade
+  ctx.strokeStyle=C.chalk; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(6,54); ctx.lineTo(W-6,54); ctx.stroke();  // endline behind the goal
+  ctx.beginPath(); ctx.moveTo(9,54); ctx.lineTo(9,H); ctx.moveTo(W-9,54); ctx.lineTo(W-9,H); ctx.stroke();  // sidelines
   ctx.save(); ctx.translate(sh,0);
   // the crease — chalk half-circle at the goal mouth you can't shoot from inside
   ctx.fillStyle='rgba(150,190,255,0.10)';
@@ -1021,8 +1041,8 @@ function drawToasts(){
   if(toastT>150){ toasts.shift(); toastT=0; }
 }
 const SHARE_URL='https://michaeltholland.github.io/agent-mode/';
-const APP_VERSION='4.3';     // bump every deploy; the update check compares against the live file
-const WHATS_NEW='MORE TRIVIA: NAME THE SHOT + GOOD vs GREAT';   // one-line highlight shown on the update prompt
+const APP_VERSION='4.4';     // bump every deploy; the update check compares against the live file
+const WHATS_NEW='NEW LOOK: PRO TURF, GOAL & GOALIE';   // one-line highlight shown on the update prompt
 let updateReady=false, updateNote='';
 function updateCheck(){
   if(typeof fetch!=='function') return;
