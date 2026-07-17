@@ -650,15 +650,22 @@ function updatePlayers(){ for(const p of players){ if(p.flash>0)p.flash--; p.ph+
   keepOutOfNet(p); } }
 function drawPlayer(p){
   const x=Math.round(p.x), y=Math.round(p.y), run=(Math.sin(p.ph*6)*2)|0;
-  const body=p.flash>0?'#ffffff':(p.team==='D'?'#c0383f':'#2f7fd0'), dk=p.team==='D'?'#7a1f26':'#1c5390';
-  ctx.fillStyle=dk; ctx.fillRect(x-5,y+5,4,8+run); ctx.fillRect(x+1,y+5,4,8-run);     // legs
-  ctx.fillStyle='#0a0a0c'; ctx.fillRect(x-6,y+12+run,5,3); ctx.fillRect(x+1,y+12-run,5,3); // cleats
-  ctx.fillStyle=body; ctx.fillRect(x-7,y-6,14,13);                                     // jersey
-  ctx.fillStyle=dk; ctx.fillRect(x-7,y-6,14,3);
-  ctx.fillStyle=C.skin; ctx.fillRect(x-3,y-13,6,6);                                    // head
-  ctx.fillStyle=p.team==='D'?'#5a1318':'#143a66'; ctx.fillRect(x-5,y-16,10,4);         // helmet
-  ctx.strokeStyle=C.shaft; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(x+5,y-8); ctx.lineTo(x+11,y-19); ctx.stroke();
-  ctx.fillStyle=p.team==='D'?'#d0454d':'#5aa0e6'; ctx.fillRect(x+8,y-23,6,6);          // crosse head
+  const D=p.team==='D', fl=p.flash>0;
+  const body=fl?'#ffffff':(D?'#c0383f':'#2f7fd0'), dk=D?'#7a1f26':'#1c5390', hi=D?'#e05a62':'#5aa0e6', helm=D?'#5a1318':'#143a66';
+  ctx.fillStyle='rgba(0,0,0,0.20)'; ctx.beginPath(); ctx.ellipse(x,y+13,8,3,0,0,7); ctx.fill();   // shadow
+  ctx.fillStyle=dk; ctx.fillRect(x-5,y+4,4,8+run); ctx.fillRect(x+1,y+4,4,8-run);                 // legs
+  ctx.fillStyle='#0a0a0c'; ctx.fillRect(x-6,y+11+run,5,3); ctx.fillRect(x+1,y+11-run,5,3);         // cleats
+  ctx.fillStyle=dk; ctx.fillRect(x-8,y-6,3,7); ctx.fillRect(x+5,y-6,3,7);                          // shoulder caps
+  ctx.fillStyle=body; ctx.fillRect(x-7,y-7,14,14);                                                // jersey
+  ctx.fillStyle=fl?'#ffffff':hi; ctx.fillRect(x-7,y-7,14,2);
+  ctx.fillStyle=dk; ctx.fillRect(x-7,y+5,14,2);
+  ctx.fillStyle=dk; ctx.fillRect(x-9,y-1,3,4); ctx.fillRect(x+6,y-1,3,4);                          // gloves
+  ctx.fillStyle=C.skin; ctx.fillRect(x-3,y-13,6,6);                                               // head
+  ctx.fillStyle=helm; ctx.fillRect(x-5,y-16,10,5);                                                // helmet
+  ctx.fillStyle=hi; ctx.fillRect(x-5,y-16,10,1);
+  ctx.strokeStyle='rgba(18,20,26,0.7)'; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(x+2,y-13); ctx.lineTo(x+5,y-13); ctx.stroke(); // cage hint
+  ctx.strokeStyle=C.shaft; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(x+6,y-6); ctx.lineTo(x+12,y-18); ctx.stroke();              // shaft
+  ctx.fillStyle=hi; ctx.beginPath(); ctx.moveTo(x+9,y-16); ctx.lineTo(x+15,y-22); ctx.lineTo(x+16,y-18); ctx.lineTo(x+11,y-14); ctx.closePath(); ctx.fill(); // crosse head
 }
 function drawPlayers(behind){ for(const p of players){ if((p.y<NET1.y)===behind) drawPlayer(p); } }
 function resolveObstacles(x,y){
@@ -1053,8 +1060,8 @@ function drawToasts(){
   if(toastT>150){ toasts.shift(); toastT=0; }
 }
 const SHARE_URL='https://michaeltholland.github.io/agent-mode/';
-const APP_VERSION='4.5';     // bump every deploy; the update check compares against the live file
-const WHATS_NEW='SHOOTER GLOW-UP TO MATCH';   // one-line highlight shown on the update prompt
+const APP_VERSION='4.6';     // bump every deploy; the update check compares against the live file
+const WHATS_NEW='FULL FIELD PLAYERS GLOW-UP';   // one-line highlight shown on the update prompt
 let updateReady=false, updateNote='';
 function updateCheck(){
   if(typeof fetch!=='function') return;
