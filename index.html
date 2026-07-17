@@ -534,7 +534,24 @@ function menuUpdate(){ let p; while((p=consumeTap())){
 }
 // --- rounded UI helpers drawn on the crisp text layer (tctx) ---
 function tRR(x,y,w,h,r){ tctx.beginPath(); tctx.moveTo(x+r,y); tctx.arcTo(x+w,y,x+w,y+h,r); tctx.arcTo(x+w,y+h,x,y+h,r); tctx.arcTo(x,y+h,x,y,r); tctx.arcTo(x,y,x+w,y,r); tctx.closePath(); }
-function tileBox(x,y,w,h,fill,acc){ tRR(x,y,w,h,12); tctx.fillStyle=fill; tctx.fill(); if(acc){ tctx.lineWidth=2; tctx.strokeStyle=acc; tctx.stroke(); } }
+function tileBox(x,y,w,h,fill,acc){ tRR(x,y,w,h,12); tctx.fillStyle=fill; tctx.fill();
+  // subtle top gloss so every panel reads like molded plastic
+  tctx.save(); tRR(x+1,y+1,w-2,h-2,11); tctx.clip();
+  const g=tctx.createLinearGradient(0,y,0,y+h*0.6); g.addColorStop(0,'rgba(255,255,255,0.12)'); g.addColorStop(1,'rgba(255,255,255,0)');
+  tctx.fillStyle=g; tctx.fillRect(x,y,w,h*0.6); tctx.restore();
+  if(acc){ tctx.lineWidth=2; tctx.strokeStyle=acc; tRR(x,y,w,h,12); tctx.stroke(); } }
+// brand crest: crossed lacrosse sticks + ball in a navy/green roundel
+function drawCrest(cx,cy,r){ tctx.save();
+  tctx.beginPath(); tctx.arc(cx,cy,r,0,7); tctx.fillStyle='#0d1b3e'; tctx.fill();
+  tctx.lineWidth=2; tctx.strokeStyle=C.green; tctx.stroke();
+  tctx.lineWidth=Math.max(2,r*0.17); tctx.lineCap='round'; tctx.strokeStyle=C.cream;
+  const s=r*0.62;
+  tctx.beginPath(); tctx.moveTo(cx-s,cy+s); tctx.lineTo(cx+s,cy-s); tctx.stroke();   // stick /
+  tctx.beginPath(); tctx.moveTo(cx+s,cy+s); tctx.lineTo(cx-s,cy-s); tctx.stroke();   // stick \
+  // crosse heads (little mesh pockets) at the top of each shaft
+  tctx.fillStyle=C.cream; tctx.beginPath(); tctx.arc(cx+s,cy-s,r*0.16,0,7); tctx.fill(); tctx.beginPath(); tctx.arc(cx-s,cy-s,r*0.16,0,7); tctx.fill();
+  tctx.fillStyle=C.white; tctx.beginPath(); tctx.arc(cx,cy,r*0.19,0,7); tctx.fill();  // ball at center
+  tctx.restore(); }
 function tStar(cx,cy,r,col){ tctx.beginPath(); for(let i=0;i<10;i++){ const a=-Math.PI/2+i*Math.PI/5, rr=(i%2)?r*0.45:r; tctx[i?'lineTo':'moveTo'](cx+Math.cos(a)*rr,cy+Math.sin(a)*rr);} tctx.closePath(); tctx.fillStyle=col; tctx.fill(); }
 function mIcon(name,cx,cy,col){ tctx.save(); tctx.strokeStyle=col; tctx.fillStyle=col; tctx.lineWidth=2.5; tctx.lineJoin='round';
   if(name==='help'){ tctx.beginPath(); tctx.arc(cx,cy,10,0,7); tctx.stroke(); tctx.font='bold 16px "Trebuchet MS",sans-serif'; tctx.textAlign='center'; tctx.textBaseline='middle'; tctx.fillText('?',cx,cy+1); }
@@ -551,16 +568,27 @@ function drawPlayBtn(r,label,sub,idx){ const sel=menuSel===idx;
   drawText(sub, r.x+46, r.y+24, 1.0, '#c8f2d4');
 }
 function drawMenu(){
-  // dimmed pixel field backdrop (sprite layer)
-  vgrad(0,0,W,H,C.skyTop,C.skyBot);
-  ctx.fillStyle=C.grass1; ctx.fillRect(0,H*0.5,W,H*0.5);
-  for(let i=0;i<8;i++){ ctx.fillStyle=i%2?C.grass2:C.grass3; ctx.fillRect(0,H*0.5+i*22,W,11); }
-  ctx.fillStyle='rgba(6,10,22,0.62)'; ctx.fillRect(0,0,W,H);
-  // crisp UI layer
-  drawText('LACROSSE SHOOTOUT',(W-textW('LACROSSE SHOOTOUT',1.8))/2,8,1.8,C.yellow);
+  // mowed-turf backdrop (sprite layer) - same field the game is played on
+  ctx.fillStyle=C.turfLo; ctx.fillRect(0,0,W,H);
+  for(let i=0;i<Math.ceil(H/26);i++){ if(i%2){ ctx.fillStyle=C.turfHi; ctx.fillRect(0,i*26,W,26); } }
+  // chalk midfield circle + line for a field feel behind the panels
+  ctx.strokeStyle='rgba(255,255,255,0.16)'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(0,H*0.52); ctx.lineTo(W,H*0.52); ctx.stroke();
+  ctx.beginPath(); ctx.arc(W/2,H*0.52,52,0,7); ctx.stroke();
+  ctx.fillStyle='rgba(5,12,20,0.52)'; ctx.fillRect(0,0,W,H);                       // darken so UI pops
+  ctx.fillStyle='rgba(0,0,0,0.28)'; ctx.fillRect(0,H-70,W,70);                     // vignette toward the footer
+  // crisp UI layer -- BRAND HEADER band (navy) with green + gold underline
+  { const bh=46; const g=tctx.createLinearGradient(0,0,0,bh); g.addColorStop(0,'#13285a'); g.addColorStop(1,'#0a1730');
+    tctx.fillStyle=g; tctx.fillRect(0,0,W,bh);
+    tctx.fillStyle=C.green; tctx.fillRect(0,bh,W,2.5); tctx.fillStyle=C.gold; tctx.fillRect(0,bh+2.5,W,1); }
+  { const sc=1.7, pre='LACROSSE ', suf='SHOOTOUT', fullW=textW('LACROSSE SHOOTOUT',sc);
+    const cr=11, crestW=cr*2+6, total=crestW+fullW, sx=(W-total)/2, ty=6;
+    drawCrest(sx+cr, ty+7, cr);
+    drawText(pre, sx+crestW, ty, sc, C.cream);
+    drawText(suf, sx+crestW+textW(pre,sc), ty, sc, C.green); }
   const info='BEST '+HI.g1+'   LV '+curLevel()+'   COINS '+PROFILE.coins;
-  drawText(info,(W-textW(info,1.15))/2,32,1.15,C.gold);
-  drawText('v'+APP_VERSION,W-6-textW('v'+APP_VERSION,1.3),6,1.3,C.cream);
+  drawText(info,(W-textW(info,1.15))/2,30,1.15,C.gold);
+  drawText('v'+APP_VERSION,W-6-textW('v'+APP_VERSION,1.3),4,1.3,'#9fb4d8');
   drawPlayBtn(M_PLAY1,'GOALIE SHOOTOUT','SCORE TILL 3 SAVES',0);
   { const b=M_PRACTICE, sel=(menuSel===PRACTICE_I);   // secondary practice button (10 shots, no elimination)
     tileBox(b.x,b.y,b.w,b.h, sel?'#1f6f9a':'#155772', '#37b6c6');
@@ -1095,8 +1123,8 @@ function drawToasts(){
   if(toastT>150){ toasts.shift(); toastT=0; }
 }
 const SHARE_URL='https://michaeltholland.github.io/agent-mode/';
-const APP_VERSION='4.7';     // bump every deploy; the update check compares against the live file
-const WHATS_NEW='PASS TO TEAMMATES - FULL FIELD';   // one-line highlight shown on the update prompt
+const APP_VERSION='4.8';     // bump every deploy; the update check compares against the live file
+const WHATS_NEW='NEW MENU LOOK - CREST + TURF BRAND';   // one-line highlight shown on the update prompt
 let updateReady=false, updateNote='';
 function updateCheck(){
   if(typeof fetch!=='function') return;
