@@ -337,19 +337,31 @@ function drawBall(x,y,r){ r=r||4;
 }
 function drawShooter(x,y,wind){
   const P=PROFILE;
-  ctx.fillStyle=P.pants; ctx.fillRect(x-6,y,5,14); ctx.fillRect(x+2,y,5,14);
-  ctx.fillStyle=C.black; ctx.fillRect(x-7,y+13,7,3); ctx.fillRect(x+1,y+13,7,3);
-  ctx.fillStyle=P.jersey; ctx.fillRect(x-9,y-16,18,18);
-  ctx.fillStyle=shade(P.jersey,0.18); ctx.fillRect(x-9,y-16,18,3);
-  const ns=''+P.num; drawText(ns,x-textW(ns,1)/2,y-11,1,P.numCol);
+  ctx.fillStyle='rgba(0,0,0,0.22)'; ctx.beginPath(); ctx.ellipse(x,y+15,11,4,0,0,7); ctx.fill();   // ground shadow
+  // legs / pants with side stripe + cleats
+  ctx.fillStyle=P.pants; ctx.fillRect(x-6,y,5,15); ctx.fillRect(x+1,y,5,15);
+  ctx.fillStyle=shade(P.pants,0.22); ctx.fillRect(x-6,y,2,15); ctx.fillRect(x+1,y,2,15);
+  ctx.fillStyle=C.black; ctx.fillRect(x-7,y+14,7,3); ctx.fillRect(x,y+14,7,3);
+  // torso: jersey + shoulder pads + trims + number
+  ctx.fillStyle=shade(P.jersey,0.12); ctx.fillRect(x-12,y-16,3,9); ctx.fillRect(x+9,y-16,3,9);   // shoulder caps
+  ctx.fillStyle=P.jersey; ctx.fillRect(x-10,y-17,20,19);
+  ctx.fillStyle=shade(P.jersey,0.20); ctx.fillRect(x-10,y-17,20,3);
+  ctx.fillStyle=shade(P.jersey,-0.22); ctx.fillRect(x-10,y-1,20,3);
+  const ns=''+P.num; drawText(ns,x-textW(ns,1)/2,y-12,1,P.numCol);
+  ctx.fillStyle=shade(P.jersey,-0.3); ctx.fillRect(x-12,y-7,4,5); ctx.fillRect(x+8,y-7,4,5);      // gloves
+  // head + helmet with facemask cage
   ctx.fillStyle=C.skin; ctx.fillRect(x-4,y-25,8,9);
-  ctx.fillStyle=P.helmet; ctx.fillRect(x-6,y-27,12,8);
-  ctx.fillStyle=shade(P.helmet,-0.22); ctx.fillRect(x-6,y-21,12,2);
-  ctx.fillStyle=C.dgrey; ctx.fillRect(x+3,y-22,3,4);
+  ctx.fillStyle=P.helmet; ctx.fillRect(x-7,y-28,14,9);
+  ctx.fillStyle=shade(P.helmet,0.25); ctx.fillRect(x-7,y-28,14,2);
+  ctx.fillStyle=shade(P.helmet,-0.25); ctx.fillRect(x-7,y-20,14,2);
+  ctx.strokeStyle='rgba(18,20,26,0.85)'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(x+3,y-26); ctx.lineTo(x+7,y-26); ctx.moveTo(x+3,y-23); ctx.lineTo(x+7,y-23); ctx.stroke();
+  // arm + crosse with an angled head + pocket
   const sw=wind?4:0;
-  ctx.strokeStyle=C.skin; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(x+6,y-12); ctx.lineTo(x+13+sw,y-20); ctx.stroke();
-  ctx.strokeStyle=P.shaft; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(x+13+sw,y-20); ctx.lineTo(x+24+sw,y-42); ctx.stroke();
-  ctx.fillStyle=P.head; ctx.fillRect(x+22+sw,y-50,8,8); ctx.fillStyle=shade(P.head,-0.25); ctx.fillRect(x+23+sw,y-49,6,6);
+  ctx.strokeStyle=C.skin; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(x+8,y-12); ctx.lineTo(x+13+sw,y-20); ctx.stroke();
+  ctx.strokeStyle=P.shaft; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(x+12+sw,y-19); ctx.lineTo(x+25+sw,y-45); ctx.stroke();
+  ctx.fillStyle=P.head; ctx.beginPath(); ctx.moveTo(x+22+sw,y-43); ctx.lineTo(x+31+sw,y-51); ctx.lineTo(x+33+sw,y-46); ctx.lineTo(x+25+sw,y-41); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle=shade(P.head,-0.3); ctx.lineWidth=1; ctx.stroke();
 }
 function drawRef(t){
   const ease=1-Math.pow(1-clamp(t/40,0,1),2), rx=lerp(W+30,208,ease), ry=258, run=Math.sin(t*0.5)*3;
@@ -1041,8 +1053,8 @@ function drawToasts(){
   if(toastT>150){ toasts.shift(); toastT=0; }
 }
 const SHARE_URL='https://michaeltholland.github.io/agent-mode/';
-const APP_VERSION='4.4';     // bump every deploy; the update check compares against the live file
-const WHATS_NEW='NEW LOOK: PRO TURF, GOAL & GOALIE';   // one-line highlight shown on the update prompt
+const APP_VERSION='4.5';     // bump every deploy; the update check compares against the live file
+const WHATS_NEW='SHOOTER GLOW-UP TO MATCH';   // one-line highlight shown on the update prompt
 let updateReady=false, updateNote='';
 function updateCheck(){
   if(typeof fetch!=='function') return;
