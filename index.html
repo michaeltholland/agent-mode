@@ -638,16 +638,19 @@ const PLAYER_HOMES=[
   {x:30,y:150,t:'O'},{x:W-30,y:150,t:'O'},{x:34,y:370,t:'O'},{x:W-34,y:370,t:'O'},{x:150,y:408,t:'O'}
 ];
 function spawnPlayers(){ players=PLAYER_HOMES.map(h=>({team:h.t, hx:h.x, hy:h.y, x:h.x, y:h.y,
-  ph:rnd(0,6.28), spd:0.018+rnd(0,0.018), rng:(h.t==='D'?26:16)+rnd(0,8), flash:0})); }
+  ph:rnd(0,6.28), spd:0.018+rnd(0,0.018), rng:(h.t==='D'?26:16)+rnd(0,8), flash:0, shift:0})); }
 function keepOutOfNet(p){
   if(p.x>NETBOX.x-PLAYER_R&&p.x<NETBOX.x+NETBOX.w+PLAYER_R&&p.y>NETBOX.y-PLAYER_R&&p.y<NETBOX.y+NETBOX.h+PLAYER_R){
     const dl=p.x-(NETBOX.x-PLAYER_R),dr=(NETBOX.x+NETBOX.w+PLAYER_R)-p.x,dt=p.y-(NETBOX.y-PLAYER_R),db=(NETBOX.y+NETBOX.h+PLAYER_R)-p.y,m=Math.min(dl,dr,dt,db);
     if(m===dl)p.x=NETBOX.x-PLAYER_R;else if(m===dr)p.x=NETBOX.x+NETBOX.w+PLAYER_R;else if(m===dt)p.y=NETBOX.y-PLAYER_R;else p.y=NETBOX.y+NETBOX.h+PLAYER_R; }
 }
-function updatePlayers(){ for(const p of players){ if(p.flash>0)p.flash--; p.ph+=p.spd;
-  p.x = p.hx + Math.sin(p.ph)*p.rng + Math.sin(p.ph*5.7)*2;     // slide along the rod + tiny vibrate
-  p.y = p.hy + Math.sin(p.ph*0.6)*7 + Math.cos(p.ph*6.3)*1.5;   // small drift + jitter
-  keepOutOfNet(p); } }
+function updatePlayers(){ const cx=G1.shooterX;   // defenders slide toward the ball carrier to contest
+  for(const p of players){ if(p.flash>0)p.flash--; p.ph+=p.spd;
+    if(p.team==='D'){ const tgt=clamp((cx-p.hx)*0.5,-34,34); p.shift += (tgt-p.shift)*0.06; }
+    const hx=p.hx+(p.team==='D'?p.shift:0);
+    p.x = hx + Math.sin(p.ph)*p.rng + Math.sin(p.ph*5.7)*2;     // slide along the rod + tiny vibrate
+    p.y = p.hy + Math.sin(p.ph*0.6)*7 + Math.cos(p.ph*6.3)*1.5;   // small drift + jitter
+    keepOutOfNet(p); } }
 function drawPlayer(p){
   const x=Math.round(p.x), y=Math.round(p.y), run=(Math.sin(p.ph*6)*2)|0;
   const D=p.team==='D', fl=p.flash>0;
@@ -680,7 +683,7 @@ function resolveObstacles(x,y){
 function g1Init(){
   G1.endless=(gameMode==='shootout'); G1.saves=0; G1.misses=0;   // shootout = endless: 3 saves OR 3 missed targets = out
   G1.prevBest=HI.g1; G1.beatBest=false; G1.bestT=0;   // live "new high score!" celebration
-  G1.trail=[]; G1.flashT=0; G1.flashCol=C.white; G1.ripple=null;   // juice: ball trail, impact flash, net ripple
+  G1.trail=[]; G1.flashT=0; G1.flashCol=C.white; G1.ripple=null; G1.passFx=null;   // juice: ball trail, flash, ripple, pass
   G1.shots=10; G1.score=0; G1.goals=0;
   G1.aimX=AIM_CX; G1.aimY=AIM_CY;
   G1.gk={x:AIM_CX,idealX:AIM_CX,bw:60,bh:134,reach:14,lunge:0};
@@ -757,8 +760,23 @@ function g1Fire(){
   }
   G1.phase='fly'; G1.shots--; G1.gk.lunge=0; sR.dx=0; sR.dy=0; G1.trail=[]; SFX.shoot();
 }
+// an OPEN offense teammate near the aim point (field mode only) - aim here + release to PASS
+function nearestTeammate(ax,ay){
+  if(gameMode!=='field') return null;
+  let best=null, bd=24;
+  for(const p of players){ if(p.team!=='O') continue; const d=dist(ax,ay,p.x,p.y); if(d<bd){ bd=d; best=p; } }
+  return best;
+}
+function g1Pass(mate){
+  const fx=G1.shooterX, fy=G1.shooterY;
+  G1.shooterX=mate.x; G1.shooterY=mate.y;               // you become the teammate you passed to
+  mate.hx=fx; mate.hy=fy; mate.x=fx; mate.y=fy; mate.shift=0;   // he drops back to your old spot
+  G1.passFx={x1:fx,y1:fy,x2:G1.shooterX,y2:G1.shooterY,t:16};
+  G1.msg='PASS!'; G1.msgC=C.blue; G1.msgT=40; SFX.ui(); resetSticks();
+}
 function g1Update(){
   if(G1.msgT>0) G1.msgT--; if(G1.tauntT>0) G1.tauntT--; if(G1.levelUp>0) G1.levelUp--; if(G1.callT>0) G1.callT--; if(G1.bestT>0) G1.bestT--; G1.shake*=0.82;
+  if(G1.passFx){ if(--G1.passFx.t<=0) G1.passFx=null; }
   if(G1.flashT>0) G1.flashT--; if(G1.ripple){ if(--G1.ripple.t<=0) G1.ripple=null; }
   // difficulty: ENDLESS ramps slowly with success (+1% every 2 goals); practice/field ramp over their 10 shots
   const ramp = G1.endless ? 0.01*Math.floor(G1.goals/2) : ((gameMode==='field'?0:-0.12) + (10-G1.shots)/9);
@@ -807,7 +825,10 @@ function g1Update(){
       }
       let fire=rReleased;
       let p; while((p=consumeTap())){ if(p.x<0) fire=true; }   // space = shoot; drain the rest
-      if(fire){ if(G1.behind){ G1.msg='COME AROUND TO SHOOT!'; G1.msgC=C.grey; G1.msgT=44; } else g1Fire(); }
+      if(fire){ const mate=nearestTeammate(G1.aimX,G1.aimY);
+        if(mate) g1Pass(mate);                                              // crosshair over a teammate = PASS
+        else if(G1.behind){ G1.msg='COME AROUND TO SHOOT!'; G1.msgC=C.grey; G1.msgT=44; }
+        else g1Fire(); }
     }
   } else if(G1.phase==='fly'){
     const b=G1.ball; b.t++;
@@ -934,6 +955,14 @@ function g1Draw(){
     ctx.moveTo(tp.x,tp.y-pr-4); ctx.lineTo(tp.x,tp.y-pr+2); ctx.moveTo(tp.x,tp.y+pr-2); ctx.lineTo(tp.x,tp.y+pr+4); ctx.stroke();
   }
   if(G1.phase==='aim'){
+    const mate=nearestTeammate(G1.aimX,G1.aimY);
+    if(mate){   // crosshair over a teammate -> PASS marker
+      const bl=frame%8<5;
+      ctx.strokeStyle='rgba(80,180,255,0.45)'; ctx.setLineDash([3,3]); ctx.lineWidth=2;
+      ctx.beginPath(); ctx.moveTo(G1.shooterX,G1.shooterY-44); ctx.lineTo(mate.x,mate.y); ctx.stroke(); ctx.setLineDash([]);
+      ctx.strokeStyle=bl?C.blue:C.white; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(mate.x,mate.y,13,0,7); ctx.stroke();
+      drawText('PASS', mate.x-textW('PASS',1)/2, mate.y-26, 1, C.blue);
+    } else {
     const bounceZone=G1.aimY>GOAL_LINE;
     const inNet=G1.aimX>NET1.x&&G1.aimX<NET1.x+NET1.w&&G1.aimY>NET1.y&&G1.aimY<NET1.y+NET1.h;
     const open=inNet&&!g1Covered(G1.aimX,G1.aimY,gk);
@@ -949,7 +978,12 @@ function g1Draw(){
       ctx.beginPath(); ctx.moveTo(G1.aimX-15,G1.aimY); ctx.lineTo(G1.aimX+15,G1.aimY); ctx.moveTo(G1.aimX,G1.aimY-15); ctx.lineTo(G1.aimX,G1.aimY+15); ctx.stroke();
     }
     ctx.strokeStyle='rgba(255,255,255,0.22)'; ctx.setLineDash([4,4]); ctx.beginPath(); ctx.moveTo(G1.shooterX,G1.shooterY-44); ctx.lineTo(G1.aimX,G1.aimY); ctx.stroke(); ctx.setLineDash([]);
+    }
   }
+  // juice: pass zip - ball streaks from passer to receiver
+  if(G1.passFx){ const f=G1.passFx, k=1-f.t/16, bx=f.x1+(f.x2-f.x1)*k, by=f.y1+(f.y2-f.y1)*k;
+    ctx.globalAlpha=0.5; ctx.strokeStyle=C.blue; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(f.x1,f.y1); ctx.lineTo(bx,by); ctx.stroke(); ctx.globalAlpha=1;
+    ctx.fillStyle=C.white; ctx.beginPath(); ctx.arc(bx,by,3,0,7); ctx.fill(); }
   // juice: ball motion trail
   if(G1.trail&&G1.trail.length && G1.phase==='fly'){ for(let i=0;i<G1.trail.length;i++){ const t=G1.trail[i], a=(i+1)/G1.trail.length;
     ctx.globalAlpha=a*0.5; ctx.fillStyle=C.white; ctx.beginPath(); ctx.arc(t.x,t.y,1+a*2.5,0,7); ctx.fill(); } ctx.globalAlpha=1; }
@@ -968,7 +1002,8 @@ function g1Draw(){
   const ra=sR.id!==null||keys.aimL||keys.aimR||keys.aimU||keys.aimD;
   drawJoy(LJOY,sL,'MOVE',la,C.blue);
   drawJoy(RJOY,sR,'AIM / RELEASE',ra,C.green);
-  if(sR.id!==null && G1.phase==='aim'){ textCS('RELEASE TO SHOOT',H-150,1.4,frame%10<6?C.green:C.cream,C.black); }
+  if(sR.id!==null && G1.phase==='aim'){ const overMate=nearestTeammate(G1.aimX,G1.aimY);
+    textCS(overMate?'RELEASE TO PASS':'RELEASE TO SHOOT',H-150,1.4,frame%10<6?(overMate?C.blue:C.green):C.cream,C.black); }
   // HUD
   ctx.fillStyle=C.panel; ctx.fillRect(0,0,W,26); ctx.fillStyle=C.gold; ctx.fillRect(0,24,W,2);
   ctx.fillStyle='#3a2030'; ctx.fillRect(EXIT_BTN.x,EXIT_BTN.y,EXIT_BTN.w,EXIT_BTN.h); ctx.fillStyle=C.red; ctx.fillRect(EXIT_BTN.x,EXIT_BTN.y,EXIT_BTN.w,2);
@@ -1002,7 +1037,7 @@ function g1Draw(){
     const lines=['MOVE = LEFT STICK   AIM = RIGHT'];
     if(G1.endless){ lines.push('ONLY THE GOLD TARGET SCORES','IT MOVES - CORNERS, CREASE, 5 HOLE','3 MISSES OR 3 SAVES = GAME OVER'); }
     else { lines.push('HIT THE GOLD TARGET (IT MOVES)','CLEAR EVERY ZONE = LEVEL UP'); }
-    if(gameMode==='field') lines.push('RED DEFENDERS CAN BLOCK - WEAVE');
+    if(gameMode==='field') lines.push('RED DEFENDERS CAN BLOCK - WEAVE','AIM AT A BLUE TEAMMATE TO PASS');
     else lines.push('AIM TURF TO BOUNCE - NO CREASE!');
     tutorial(title,lines); }
 }
@@ -1060,8 +1095,8 @@ function drawToasts(){
   if(toastT>150){ toasts.shift(); toastT=0; }
 }
 const SHARE_URL='https://michaeltholland.github.io/agent-mode/';
-const APP_VERSION='4.6';     // bump every deploy; the update check compares against the live file
-const WHATS_NEW='FULL FIELD PLAYERS GLOW-UP';   // one-line highlight shown on the update prompt
+const APP_VERSION='4.7';     // bump every deploy; the update check compares against the live file
+const WHATS_NEW='PASS TO TEAMMATES - FULL FIELD';   // one-line highlight shown on the update prompt
 let updateReady=false, updateNote='';
 function updateCheck(){
   if(typeof fetch!=='function') return;
