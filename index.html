@@ -1021,8 +1021,8 @@ function drawToasts(){
   if(toastT>150){ toasts.shift(); toastT=0; }
 }
 const SHARE_URL='https://michaeltholland.github.io/agent-mode/';
-const APP_VERSION='4.2';     // bump every deploy; the update check compares against the live file
-const WHATS_NEW='JUICIER GOALIE GAME - TRAILS & FLASHES';   // one-line highlight shown on the update prompt
+const APP_VERSION='4.3';     // bump every deploy; the update check compares against the live file
+const WHATS_NEW='MORE TRIVIA: NAME THE SHOT + GOOD vs GREAT';   // one-line highlight shown on the update prompt
 let updateReady=false, updateNote='';
 function updateCheck(){
   if(typeof fetch!=='function') return;
@@ -1398,7 +1398,34 @@ const SLOW_Q=[
   {q:'ELITE PLAYERS LET THE GAME...',opts:['COME TO THEM','PASS THEM BY','GET RUSHED'],ans:0,fact:'THEY LET THE GAME COME TO THEM - TAKE WHAT THE D GIVES.'},
   {q:'THEY CREATE ADVANTAGES WITHOUT...',opts:['EXTRA SPEED','THINKING','TEAMMATES'],ans:0,fact:'THEY THINK FASTER THAN THEY RUN - IQ OVER RAW SPEED.'}
 ];
+// name-the-shot + good vs great - content credit: Lacrosse IQ
+const SHOTS_Q=[
+  {q:'A SHOT RELEASED ABOVE THE SHOULDERS IS...',opts:['OVERHAND','UNDERHAND','BOUNCE'],ans:0,fact:'OVERHAND - RELEASED ABOVE THE SHOULDERS FOR ACCURACY.'},
+  {q:'A HORIZONTAL, LOWER-ANGLE SHOT IS...',opts:['SIDEARM','OVERHAND','BACKHAND'],ans:0,fact:'SIDEARM - HORIZONTAL RELEASE, LOWER ANGLE, HARD TO SAVE.'},
+  {q:'A LOW-RELEASE SHOT UNDER A DEFENDER IS...',opts:['UNDERHAND','OVERHAND','QUICK STICK'],ans:0,fact:'UNDERHAND - LOW RELEASE, SNEAKS UNDER A STICK.'},
+  {q:'A SHOT SKIPPED OFF THE TURF IS A...',opts:['BOUNCE SHOT','BACKHAND','DIVE'],ans:0,fact:'BOUNCE SHOT - CHANGES DIRECTION, HARD TO STOP.'},
+  {q:'A ONE-TOUCH CATCH-AND-RELEASE IS A...',opts:['QUICK STICK','TIME AND ROOM','DIVE'],ans:0,fact:'QUICK STICK - SHOOT RIGHT OFF THE CATCH.'},
+  {q:'STEPPING INTO A SHOT WITH SPACE IS...',opts:['TIME AND ROOM','QUICK STICK','BACKHAND'],ans:0,fact:'TIME AND ROOM - SPACE AND TIME TO STEP IN, BIG POWER.'},
+  {q:'SHOOTING WHILE SPRINTING IS...',opts:['ON THE RUN','TIME AND ROOM','DIVE'],ans:0,fact:'ON THE RUN - SHOT WHILE MOVING, NEEDS BALANCE.'},
+  {q:'A SHOT FROM THE BACKHAND SIDE IS...',opts:['BACKHAND','SIDEARM','OVERHAND'],ans:0,fact:'BACKHAND - RELEASED FROM THE BACKHAND SIDE IN TIGHT SPOTS.'},
+  {q:'A SHOT WHILE DIVING PAST THE CREASE IS A...',opts:['DIVE SHOT','BOUNCE','BTB'],ans:0,fact:'DIVE SHOT - LEGALITY DEPENDS ON YOUR LEAGUE RULES.'},
+  {q:'A TRICK SHOT FROM BEHIND THE BACK IS...',opts:['BEHIND-THE-BACK','UNDERHAND','SIDEARM'],ans:0,fact:'BEHIND-THE-BACK (BTB) - DECEPTION PLUS SKILL.'}
+];
+const GREAT_Q=[
+  {q:'GREAT FIELD VISION MEANS YOU...',opts:['SCAN THE WHOLE FIELD','WATCH ONLY THE BALL','STARE AT THE GOAL'],ans:0,fact:'GREAT PLAYERS SCAN THE FIELD; GOOD ONES JUST WATCH THE BALL.'},
+  {q:'GREAT DECISION-MAKERS...',opts:['ANTICIPATE WHATS NEXT','ONLY REACT LATE','FREEZE UP'],ans:0,fact:'GREAT PLAYERS ANTICIPATE; GOOD ONES REACT.'},
+  {q:'GREAT PASSERS DELIVER...',opts:['ACCURATE, TIMED PASSES','RANDOM PASSES','ONLY SAFE ONES'],ans:0,fact:'GREAT PASSING - ACCURATE, AT THE RIGHT TIME AND PACE.'},
+  {q:'OFF THE BALL, GREAT PLAYERS...',opts:['CREATE SPACE & CUT','WAIT FOR THE BALL','STAND STILL'],ans:0,fact:'GREAT OFF-BALL MOVEMENT - CREATE SPACE, CUT WITH PURPOSE.'},
+  {q:'GREAT STICK SKILLS HOLD UP...',opts:['UNDER GAME PRESSURE','ONLY IN PRACTICE','NEVER'],ans:0,fact:'GREAT PLAYERS EXECUTE SKILLS UNDER GAME PRESSURE.'},
+  {q:'GREAT DEFENDERS...',opts:['COMMUNICATE & RECOVER','DEFEND ONLY WHEN FORCED','BALL-WATCH'],ans:0,fact:'GREAT DEFENSE - COMMUNICATE, RECOVER, PLAY TEAM D.'},
+  {q:'IN TRANSITION, GREAT PLAYERS...',opts:['SWITCH INSTANTLY O TO D','TAKE TIME TO ADJUST','JOG BACK'],ans:0,fact:'GREAT TRANSITION - SWITCH INSTANTLY BETWEEN O AND D.'},
+  {q:'AFTER A MISTAKE, GREAT PLAYERS...',opts:['STAY COMPOSED & LEARN','GET FRUSTRATED','GIVE UP'],ans:0,fact:'GREAT MENTAL TOUGHNESS - COMPOSED, LEARN, RESPOND.'},
+  {q:'GREAT CONSISTENCY MEANS...',opts:['HIGH LEVEL EVERY GAME','A FEW GOOD GAMES','HOT AND COLD'],ans:0,fact:'GREAT PLAYERS PERFORM HIGH-LEVEL GAME AFTER GAME.'},
+  {q:'GREAT WORK ETHIC MEANS YOU...',opts:['TRAIN & STUDY THE GAME','JUST SHOW UP','ONLY PLAY GAMES'],ans:0,fact:'GREAT WORK ETHIC - TRAIN WITH PURPOSE AND STUDY THE GAME.'}
+];
 const TEACH_POOL=TRIVIA_Q.map((it,i)=>({q:it.q,opts:it.opts,ans:it.ans,fact:it.fact,key:'t'+i,topic:'LACROSSE FACT'}))
+  .concat(SHOTS_Q.map((it,i)=>({q:it.q,opts:it.opts,ans:it.ans,fact:it.fact,key:'h'+i,topic:'NAME THE SHOT - LACROSSE IQ'})))
+  .concat(GREAT_Q.map((it,i)=>({q:it.q,opts:it.opts,ans:it.ans,fact:it.fact,key:'g'+i,topic:'GOOD vs GREAT - LACROSSE IQ'})))
   .concat(COACH_Q.map((it,i)=>({q:it.q,opts:it.opts,ans:it.ans,fact:it.fact,key:'c'+i,topic:"COACH'S FAVORITE PLAYER"})))
   .concat(PYRAMID_Q.map((it,i)=>({q:it.q,opts:it.opts,ans:it.ans,fact:it.fact,key:'p'+i,topic:'PYRAMID OF SUCCESS - GLOBAL LACROSSE'})))
   .concat(VISION_Q.map((it,i)=>({q:it.q,opts:it.opts,ans:it.ans,fact:it.fact,key:'v'+i,topic:'FIELD VISION - GLOBAL LACROSSE'})))
