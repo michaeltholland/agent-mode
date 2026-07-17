@@ -7,13 +7,19 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>Lacrosse Shootout</title>
+<!-- Brand crest favicon -->
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="mask-icon" href="favicon.svg" color="#3fe06a">
+<meta name="theme-color" content="#0d1b3e">
 <!-- Social link preview (Open Graph + Twitter Card) -->
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Lacrosse Shootout">
 <meta property="og:title" content="Lacrosse Shootout">
 <meta property="og:description" content="Beat the goalie, hit the targets, climb the ranks. Free to play in your browser - no install, no sign-up. Just tap the link and play.">
 <meta property="og:url" content="https://michaeltholland.github.io/agent-mode/">
-<meta property="og:image" content="https://michaeltholland.github.io/agent-mode/promo.png?v=1">
+<meta property="og:image" content="https://michaeltholland.github.io/agent-mode/promo.png?v=2">
 <meta property="og:image:type" content="image/png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
@@ -21,7 +27,7 @@
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Lacrosse Shootout">
 <meta name="twitter:description" content="Beat the goalie, hit the targets, climb the ranks. Free in your browser - no install, no sign-up.">
-<meta name="twitter:image" content="https://michaeltholland.github.io/agent-mode/promo.png?v=1">
+<meta name="twitter:image" content="https://michaeltholland.github.io/agent-mode/promo.png?v=2">
 <style>
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; -webkit-user-select:none; user-select:none; }
   html,body { margin:0; padding:0; height:100%; background:#05070f; overflow:hidden; font-family:'Courier New',monospace; touch-action:none; }
@@ -1123,8 +1129,8 @@ function drawToasts(){
   if(toastT>150){ toasts.shift(); toastT=0; }
 }
 const SHARE_URL='https://michaeltholland.github.io/agent-mode/';
-const APP_VERSION='4.8';     // bump every deploy; the update check compares against the live file
-const WHATS_NEW='NEW MENU LOOK - CREST + TURF BRAND';   // one-line highlight shown on the update prompt
+const APP_VERSION='4.9';     // bump every deploy; the update check compares against the live file
+const WHATS_NEW='BRAND CREST ICON + NEW SHARE CARD';   // one-line highlight shown on the update prompt
 let updateReady=false, updateNote='';
 function updateCheck(){
   if(typeof fetch!=='function') return;
