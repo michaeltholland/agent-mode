@@ -558,6 +558,19 @@ function drawCrest(cx,cy,r){ tctx.save();
   tctx.fillStyle=C.cream; tctx.beginPath(); tctx.arc(cx+s,cy-s,r*0.16,0,7); tctx.fill(); tctx.beginPath(); tctx.arc(cx-s,cy-s,r*0.16,0,7); tctx.fill();
   tctx.fillStyle=C.white; tctx.beginPath(); tctx.arc(cx,cy,r*0.19,0,7); tctx.fill();  // ball at center
   tctx.restore(); }
+// shared sub-screen chrome: night-turf backdrop so every menu screen sits on the same field
+function screenBackdrop(){
+  ctx.fillStyle=C.turfLo; ctx.fillRect(0,0,W,H);
+  for(let i=0;i<Math.ceil(H/26);i++){ if(i%2){ ctx.fillStyle=C.turfHi; ctx.fillRect(0,i*26,W,26); } }
+  ctx.fillStyle='rgba(10,20,42,0.80)'; ctx.fillRect(0,0,W,H);   // deep navy wash keeps content text readable
+}
+// branded BACK chip (top-left) + corner crest (top-right); rect matches the {12,12,80,36} hit target
+function backChip(){
+  tileBox(12,12,80,30,'#17284c','#37c66b');
+  tctx.fillStyle=C.cream; tctx.beginPath(); tctx.moveTo(26,27); tctx.lineTo(35,20); tctx.lineTo(35,34); tctx.closePath(); tctx.fill();
+  drawText('BACK',40,19,1.5,C.cream);
+  drawCrest(W-20,25,10);
+}
 function tStar(cx,cy,r,col){ tctx.beginPath(); for(let i=0;i<10;i++){ const a=-Math.PI/2+i*Math.PI/5, rr=(i%2)?r*0.45:r; tctx[i?'lineTo':'moveTo'](cx+Math.cos(a)*rr,cy+Math.sin(a)*rr);} tctx.closePath(); tctx.fillStyle=col; tctx.fill(); }
 function mIcon(name,cx,cy,col){ tctx.save(); tctx.strokeStyle=col; tctx.fillStyle=col; tctx.lineWidth=2.5; tctx.lineJoin='round';
   if(name==='help'){ tctx.beginPath(); tctx.arc(cx,cy,10,0,7); tctx.stroke(); tctx.font='bold 16px "Trebuchet MS",sans-serif'; tctx.textAlign='center'; tctx.textBaseline='middle'; tctx.fillText('?',cx,cy+1); }
@@ -636,9 +649,8 @@ const HELP=[
 ];
 function helpUpdate(){ let p; while((p=consumeTap())){ if(hit(p,{x:12,y:12,w:80,h:36})){ SFX.ui(); state=S.MENU; return; } helpPage++; SFX.ui(); if(helpPage>=HELP.length){ state=S.MENU; return; } } }
 function drawHelp(){
-  vgrad(0,0,W,H,'#10204a','#040814');
-  ctx.fillStyle=C.panelHi; ctx.fillRect(12,12,80,36); ctx.fillStyle=C.dgrey; ctx.fillRect(12,12,80,3);
-  glyph('LT',20,22,3,C.cream); drawText('BACK',36,23,2,C.cream);
+  screenBackdrop();
+  backChip();
   const pg=HELP[clamp(helpPage,0,HELP.length-1)];
   textCS(pg.title,68,3,C.yellow,C.black);
   let y=112; for(const ln of pg.lines){ const hl=ln.indexOf('=')>=0||ln.indexOf('GREEN')>=0||ln.indexOf('DRAG')>=0; textC(ln,y,1.6,hl?C.green:C.cream); y+=23; }
@@ -1129,8 +1141,8 @@ function drawToasts(){
   if(toastT>150){ toasts.shift(); toastT=0; }
 }
 const SHARE_URL='https://michaeltholland.github.io/agent-mode/';
-const APP_VERSION='4.9';     // bump every deploy; the update check compares against the live file
-const WHATS_NEW='BRAND CREST ICON + NEW SHARE CARD';   // one-line highlight shown on the update prompt
+const APP_VERSION='5.0';     // bump every deploy; the update check compares against the live file
+const WHATS_NEW='UNIFIED LOOK ACROSS EVERY SCREEN';   // one-line highlight shown on the update prompt
 let updateReady=false, updateNote='';
 function updateCheck(){
   if(typeof fetch!=='function') return;
@@ -1236,7 +1248,8 @@ function lbUpdate(){ if(lb.page>=lbPages()) lb.page=lbPages()-1; let p; while((p
   if(hit(p,LB_NEXT)&&lb.page<lbPages()-1){ lb.page++; SFX.ui(); return; }
   if(hit(p,OV_MENU)||p.x<0){ state=S.MENU; return; } }}
 function drawLeaderboard(){
-  vgrad(0,0,W,H,'#101a3a','#04060e');
+  screenBackdrop();
+  drawCrest(W-20,25,10);
   textCS('LEADERBOARD',46,3,C.gold,C.black);
   const total=LBTOTAL||LB.length;
   const sub=lbStatus==='loading'?'LOADING WORLD RANKS...':lbStatus==='global'?('TOP 30% OF '+total+' PLAYERS'):lbStatus==='offline'?'OFFLINE - LAST SEEN RANKS':('TOP '+LB.length);
@@ -1294,9 +1307,8 @@ function surveyUpdate(){
   }
 }
 function drawSurvey(){
-  vgrad(0,0,W,H,'#10204a','#040814');
-  ctx.fillStyle=C.panelHi; ctx.fillRect(SV_BACK.x,SV_BACK.y,SV_BACK.w,SV_BACK.h); ctx.fillStyle=C.dgrey; ctx.fillRect(SV_BACK.x,SV_BACK.y,SV_BACK.w,3);
-  glyph('LT',20,22,3,C.cream); drawText('BACK',36,23,2,C.cream);
+  screenBackdrop();
+  backChip();
   textCS('RATE THE GAME',62,3,C.yellow,C.black);
   if(survey.sent){
     drawStar(W/2,150,16,true);
@@ -1389,9 +1401,8 @@ function drawReward(){
 // ====================== ADVERTISE / SPONSOR placard (always reachable from the menu) ======================
 function sponsorInfoUpdate(){ let p; while((p=consumeTap())){ SFX.ui(); state=S.MENU; return; } }
 function drawSponsorInfo(){
-  vgrad(0,0,W,H,'#10204a','#040814');
-  ctx.fillStyle=C.panelHi; ctx.fillRect(12,12,80,36); ctx.fillStyle=C.dgrey; ctx.fillRect(12,12,80,3);
-  glyph('LT',20,22,3,C.cream); drawText('BACK',36,23,2,C.cream);
+  screenBackdrop();
+  backChip();
   textCS('ADVERTISE HERE',58,2.4,C.gold,C.black);
   textCS('SPONSOR THIS GAME',92,1.6,C.cream,C.black);
   tileBox(24,118,W-48,210,'rgba(20,30,52,0.96)',C.gold);
@@ -1406,7 +1417,8 @@ function drawSponsorInfo(){
 // ====================== TOP 10 SPLASH (shown once at login) ======================
 function introUpdate(){ let p; while((p=consumeTap())){ crownMsg=null; SFX.ui(); state=S.MENU; return; } }
 function drawIntro(){
-  vgrad(0,0,W,H,'#10204a','#040814');
+  screenBackdrop();
+  drawCrest(W-20,25,10);
   textCS('TOP 10',40,3.2,C.gold,C.black);
   if(crownMsg){ textCS('NEW LEADER CROWNED!',72,1.6,(frame%16<10?C.gold:C.yellow),C.black);
     textC(crownMsg.n+'  -  '+crownMsg.s+' PTS',94,1.25,C.cream); }
@@ -1614,9 +1626,8 @@ function drawTrivia(){
 // ====================== BADGES SCREEN ======================
 function badgesUpdate(){ let p; while((p=consumeTap())){ state=S.MENU; return; } }
 function drawBadges(){
-  vgrad(0,0,W,H,'#10204a','#040814');
-  ctx.fillStyle=C.panelHi; ctx.fillRect(12,12,80,36); ctx.fillStyle=C.dgrey; ctx.fillRect(12,12,80,3);
-  glyph('LT',20,22,3,C.cream); drawText('BACK',36,23,2,C.cream);
+  screenBackdrop();
+  backChip();
   let done=0; for(const a of ACH) if(ACH_DONE[a.id]) done++;
   textCS('BADGES',58,3,C.gold,C.black);
   textC(done+' / '+ACH.length+' UNLOCKED',86,1,C.green);
@@ -1644,9 +1655,8 @@ const COACH_TRAITS=[
 ];
 function coachUpdate(){ let p; while((p=consumeTap())){ SFX.ui(); state=S.LEARN; return; } }
 function drawCoach(){
-  vgrad(0,0,W,H,'#10204a','#040814');
-  ctx.fillStyle=C.panelHi; ctx.fillRect(12,12,80,36); ctx.fillStyle=C.dgrey; ctx.fillRect(12,12,80,3);
-  glyph('LT',20,22,3,C.cream); drawText('BACK',36,23,2,C.cream);
+  screenBackdrop();
+  backChip();
   textCS("COACH'S FAVORITE PLAYER",54,1.6,C.gold,C.black);
   textC('10 THINGS THAT GET YOU ON THE FIELD',78,0.95,C.green);
   let y=98; for(let i=0;i<COACH_TRAITS.length;i++){ const t=COACH_TRAITS[i];
@@ -1683,9 +1693,8 @@ function learnUpdate(){ let p; while((p=consumeTap())){
   for(let i=0;i<LEARN_TOPICS.length;i++){ if(hit(p,learnRow(i))){ SFX.ui(); state=LEARN_TOPICS[i].go; return; } }
 } }
 function drawLearn(){
-  vgrad(0,0,W,H,'#10204a','#040814');
-  ctx.fillStyle=C.panelHi; ctx.fillRect(12,12,80,36); ctx.fillStyle=C.dgrey; ctx.fillRect(12,12,80,3);
-  glyph('LT',20,22,3,C.cream); drawText('BACK',36,23,2,C.cream);
+  screenBackdrop();
+  backChip();
   textCS('LACROSSE 101',58,2.6,C.gold,C.black);
   textC('TAP A TOPIC TO LEARN',92,1.1,C.green);
   for(let i=0;i<LEARN_TOPICS.length;i++){ const r=learnRow(i);
@@ -1710,9 +1719,8 @@ const EQUIP=[
 ];
 function gearUpdate(){ let p; while((p=consumeTap())){ SFX.ui(); state=S.LEARN; return; } }
 function drawGear(){
-  vgrad(0,0,W,H,'#10204a','#040814');
-  ctx.fillStyle=C.panelHi; ctx.fillRect(12,12,80,36); ctx.fillStyle=C.dgrey; ctx.fillRect(12,12,80,3);
-  glyph('LT',20,22,3,C.cream); drawText('BACK',36,23,2,C.cream);
+  screenBackdrop();
+  backChip();
   textCS('BEFORE YOU BUY',52,2.0,C.gold,C.black);
   textC('BEGINNER GEAR CHECKLIST',76,0.95,C.green);
   for(let i=0;i<EQUIP.length;i++){ const col=i<6?0:1, row=i%6, x=col?W/2+4:14, y=98+row*66;
@@ -1724,9 +1732,8 @@ function drawGear(){
   textCS('TAP TO RETURN',H-18,1,C.cream,C.black);
 }
 function drawPyramid(){
-  vgrad(0,0,W,H,'#10204a','#040814');
-  ctx.fillStyle=C.panelHi; ctx.fillRect(12,12,80,36); ctx.fillStyle=C.dgrey; ctx.fillRect(12,12,80,3);
-  glyph('LT',20,22,3,C.cream); drawText('BACK',36,23,2,C.cream);
+  screenBackdrop();
+  backChip();
   textCS('PYRAMID OF LACROSSE SUCCESS',52,1.45,C.gold,C.black);
   textC('BUILD EACH LAYER EVERY DAY',74,0.95,C.green);
   let y=92; for(let i=0;i<PYRAMID_LEVELS.length;i++){ const t=PYRAMID_LEVELS[i];
@@ -1810,7 +1817,8 @@ function drawCard(y0,title,sub,lv,effect,buyR){
          const ct=upCost(lv)+' C'; drawText(ct,buyR.x+(buyR.w-textW(ct,1.1))/2,buyR.y+20,1.1,C.gold); }
 }
 function drawLocker(){
-  vgrad(0,0,W,H,'#10204a','#040814');
+  screenBackdrop();
+  drawText('LOCKER',20,14,1.8,C.cream); drawCrest(W-20,22,9);
   drawTab(LK_TAB1,'GEAR',lockerTab===0); drawTab(LK_TAB2,'UPGRADES',lockerTab===1);
   textC('LEVEL '+curLevel()+'     COINS '+PROFILE.coins,H-66,1.5,C.gold);
   if(lockerTab===0){
