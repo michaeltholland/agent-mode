@@ -310,7 +310,9 @@ const stickSpd=()=>10.6*(1+0.03*PROFILE.stickLv);         // +3% shot speed / le
 const trainMul=()=>1+0.04*PROFILE.trainLv;                // +4% move & aim speed / level
 // shot accuracy: loose for rookies, tightens naturally with level AND with the accuracy upgrade
 function shotSkill(){ return clamp((curLevel()-1)/40 + PROFILE.accLv*0.04, 0, 1); }
-function shotLoose(){ return lerp(12, 1.5, shotSkill()); }   // px of scatter on the target
+function shotLoose(){ let sk=shotSkill();
+  if(gameMode==='field'&&G1.carrier) sk=clamp(0.35*sk+0.65*G1.carrier.skill,0,1);   // the player you're controlling has their own touch
+  return lerp(12, 1.5, sk); }   // px of scatter on the target
 function upCost(lv){ return 20*(lv+1); }                  // 20,40,60... coins
 let ACH_DONE={};
 try{ ACH_DONE=JSON.parse(localStorage.getItem('lax4_ach')||'{}')||{}; }catch(e){ ACH_DONE={}; }
@@ -341,7 +343,7 @@ function drawBall(x,y,r){ r=r||4;
   ctx.fillStyle=C.ball; ctx.beginPath(); ctx.arc(x,y,r,0,7); ctx.fill();
   ctx.fillStyle='rgba(255,255,255,0.85)'; ctx.fillRect(x-r+1,y-r+1,2,2);
 }
-function drawShooter(x,y,wind){
+function drawShooter(x,y,wind,num){
   const P=PROFILE;
   ctx.fillStyle='rgba(0,0,0,0.22)'; ctx.beginPath(); ctx.ellipse(x,y+15,11,4,0,0,7); ctx.fill();   // ground shadow
   // legs / pants with side stripe + cleats
@@ -353,7 +355,7 @@ function drawShooter(x,y,wind){
   ctx.fillStyle=P.jersey; ctx.fillRect(x-10,y-17,20,19);
   ctx.fillStyle=shade(P.jersey,0.20); ctx.fillRect(x-10,y-17,20,3);
   ctx.fillStyle=shade(P.jersey,-0.22); ctx.fillRect(x-10,y-1,20,3);
-  const ns=''+P.num; drawText(ns,x-textW(ns,1)/2,y-12,1,P.numCol);
+  const ns=''+(num!=null?num:P.num); drawText(ns,x-textW(ns,1)/2,y-12,1,P.numCol);
   ctx.fillStyle=shade(P.jersey,-0.3); ctx.fillRect(x-12,y-7,4,5); ctx.fillRect(x+8,y-7,4,5);      // gloves
   // head + helmet with facemask cage
   ctx.fillStyle=C.skin; ctx.fillRect(x-4,y-25,8,9);
@@ -683,8 +685,11 @@ const PLAYER_HOMES=[
   // 5 OFFENSE teammates out at the sides / up top / deep (clear of the cage)
   {x:30,y:150,t:'O'},{x:W-30,y:150,t:'O'},{x:34,y:370,t:'O'},{x:W-34,y:370,t:'O'},{x:150,y:408,t:'O'}
 ];
-function spawnPlayers(){ players=PLAYER_HOMES.map(h=>({team:h.t, hx:h.x, hy:h.y, x:h.x, y:h.y,
-  ph:rnd(0,6.28), spd:0.018+rnd(0,0.018), rng:(h.t==='D'?26:16)+rnd(0,8), flash:0, shift:0})); }
+const OFF_NUMS=[7,22,3,44,11];                    // jersey numbers for your 5 field teammates
+function spawnPlayers(){ let oi=0; players=PLAYER_HOMES.map(h=>{ const p={team:h.t, hx:h.x, hy:h.y, x:h.x, y:h.y,
+  ph:rnd(0,6.28), spd:0.018+rnd(0,0.018), rng:(h.t==='D'?26:16)+rnd(0,8), flash:0, shift:0};
+  if(h.t==='O'){ p.num=OFF_NUMS[oi%OFF_NUMS.length]; p.skill=0.28+rnd(0,0.34); p.main=false; oi++; }   // each teammate has a number + skill
+  return p; }); }
 function keepOutOfNet(p){
   if(p.x>NETBOX.x-PLAYER_R&&p.x<NETBOX.x+NETBOX.w+PLAYER_R&&p.y>NETBOX.y-PLAYER_R&&p.y<NETBOX.y+NETBOX.h+PLAYER_R){
     const dl=p.x-(NETBOX.x-PLAYER_R),dr=(NETBOX.x+NETBOX.w+PLAYER_R)-p.x,dt=p.y-(NETBOX.y-PLAYER_R),db=(NETBOX.y+NETBOX.h+PLAYER_R)-p.y,m=Math.min(dl,dr,dt,db);
@@ -715,6 +720,8 @@ function drawPlayer(p){
   ctx.strokeStyle='rgba(18,20,26,0.7)'; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(x+2,y-13); ctx.lineTo(x+5,y-13); ctx.stroke(); // cage hint
   ctx.strokeStyle=C.shaft; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(x+6,y-6); ctx.lineTo(x+12,y-18); ctx.stroke();              // shaft
   ctx.fillStyle=hi; ctx.beginPath(); ctx.moveTo(x+9,y-16); ctx.lineTo(x+15,y-22); ctx.lineTo(x+16,y-18); ctx.lineTo(x+11,y-14); ctx.closePath(); ctx.fill(); // crosse head
+  if(p.main){ ctx.strokeStyle=C.gold; ctx.lineWidth=1.5; ctx.beginPath(); ctx.ellipse(x,y+13,9,3.5,0,0,7); ctx.stroke(); }   // your main player - gold ring so you can pass back to him
+  if(p.team==='O'&&p.num!=null){ const ns=''+p.num; drawText(ns,x-textW(ns,0.8)/2,y-5,0.8,'rgba(255,255,255,0.85)'); }        // teammate jersey number
 }
 function drawPlayers(behind){ for(const p of players){ if((p.y<NET1.y)===behind) drawPlayer(p); } }
 function resolveObstacles(x,y){
@@ -742,6 +749,7 @@ function g1Init(){
   G1.tc={done:{}, active:null, laps:0}; for(const k of ZONES) G1.tc.done[k]=false;
   tcPick();
   if(gameMode==='field') spawnPlayers(); else players=[];   // shootout = just you + keeper
+  G1.carrier={num:PROFILE.num, skill:shotSkill(), main:true};   // ball starts with your main player; identity travels on a pass
   resetSticks();
 }
 const ZONES=['TL','TR','BL','BR','CL','CR','FH'];   // 4 corners + 2 crease (low, flanking the keeper) + five hole
@@ -806,19 +814,30 @@ function g1Fire(){
   }
   G1.phase='fly'; G1.shots--; G1.gk.lunge=0; sR.dx=0; sR.dy=0; G1.trail=[]; SFX.shoot();
 }
-// an OPEN offense teammate near the aim point (field mode only) - aim here + release to PASS
-function nearestTeammate(ax,ay){
+// aiming at the cage (or the bounce band just in front of the mouth) = SHOOT; aiming out in the field = PASS
+function shootIntent(ax,ay){
+  const inNet = ax>NET1.x && ax<NET1.x+NET1.w && ay>NET1.y && ay<NET1.y+NET1.h;
+  const bounce = ay>=GOAL_LINE && ay<GOAL_LINE+48 && ax>NET1.x && ax<NET1.x+NET1.w;   // skip-shot band on the turf
+  return inNet || bounce;
+}
+// the teammate nearest the crosshair - NO distance cap, so you can hit ANY teammate by pointing at them
+function passTarget(ax,ay){
   if(gameMode!=='field') return null;
-  let best=null, bd=24;
+  let best=null, bd=1e9;
   for(const p of players){ if(p.team!=='O') continue; const d=dist(ax,ay,p.x,p.y); if(d<bd){ bd=d; best=p; } }
   return best;
 }
+// PASS: control transfers to the receiver AT HIS SPOT - you literally become that player.
+// your old player stays where you left him and rejoins the team as an AI teammate.
 function g1Pass(mate){
-  const fx=G1.shooterX, fy=G1.shooterY;
-  G1.shooterX=mate.x; G1.shooterY=mate.y;               // you become the teammate you passed to
-  mate.hx=fx; mate.hy=fy; mate.x=fx; mate.y=fy; mate.shift=0;   // he drops back to your old spot
+  const fx=G1.shooterX, fy=G1.shooterY, c=G1.carrier;
+  players.push({team:'O', hx:fx, hy:fy, x:fx, y:fy, ph:rnd(0,6.28), spd:0.018+rnd(0,0.018),
+    rng:16+rnd(0,8), flash:0, shift:0, num:c.num, skill:c.skill, main:c.main});   // your old self becomes a teammate
+  const i=players.indexOf(mate); if(i>=0) players.splice(i,1);                    // the receiver is now you
+  G1.shooterX=mate.x; G1.shooterY=mate.y;
+  G1.carrier={num:mate.num, skill:mate.skill, main:!!mate.main};                  // adopt his number + skill
   G1.passFx={x1:fx,y1:fy,x2:G1.shooterX,y2:G1.shooterY,t:16};
-  G1.msg='PASS!'; G1.msgC=C.blue; G1.msgT=40; SFX.ui(); resetSticks();
+  G1.msg='NOW #'+mate.num; G1.msgC=C.blue; G1.msgT=46; SFX.ui(); resetSticks();
 }
 function g1Update(){
   if(G1.msgT>0) G1.msgT--; if(G1.tauntT>0) G1.tauntT--; if(G1.levelUp>0) G1.levelUp--; if(G1.callT>0) G1.callT--; if(G1.bestT>0) G1.bestT--; G1.shake*=0.82;
@@ -871,8 +890,9 @@ function g1Update(){
       }
       let fire=rReleased;
       let p; while((p=consumeTap())){ if(p.x<0) fire=true; }   // space = shoot; drain the rest
-      if(fire){ const mate=nearestTeammate(G1.aimX,G1.aimY);
-        if(mate) g1Pass(mate);                                              // crosshair over a teammate = PASS
+      if(fire){
+        const mate = (gameMode==='field' && !shootIntent(G1.aimX,G1.aimY)) ? passTarget(G1.aimX,G1.aimY) : null;
+        if(mate) g1Pass(mate);                                              // aiming into the field = PASS to nearest teammate
         else if(G1.behind){ G1.msg='COME AROUND TO SHOOT!'; G1.msgC=C.grey; G1.msgT=44; }
         else g1Fire(); }
     }
@@ -931,6 +951,7 @@ function g1Update(){
           G1.streak++; if(G1.streak>G1.maxCombo) G1.maxCombo=G1.streak;
           let bonus=0; if(G1.streak>=2){ bonus=G1.streak-1; pts+=bonus; }
           G1.score+=pts; G1.goals++; PROFILE.coins+=pts;   // 1 coin per point scored
+          if(gameMode==='field' && G1.carrier) G1.carrier.skill=clamp(G1.carrier.skill+0.05,0,1);   // the scorer sharpens his touch - players advance
           if(!G1.beatBest && G1.prevBest>0 && G1.score>G1.prevBest){   // just passed your all-time best - serotonin!
             G1.beatBest=true; G1.bestT=150; PROFILE.coins+=10; profSave();
             spawn(W/2,150,52,[C.gold,C.green,C.yellow,C.white]); SFX.big(); }
@@ -1001,13 +1022,13 @@ function g1Draw(){
     ctx.moveTo(tp.x,tp.y-pr-4); ctx.lineTo(tp.x,tp.y-pr+2); ctx.moveTo(tp.x,tp.y+pr-2); ctx.lineTo(tp.x,tp.y+pr+4); ctx.stroke();
   }
   if(G1.phase==='aim'){
-    const mate=nearestTeammate(G1.aimX,G1.aimY);
-    if(mate){   // crosshair over a teammate -> PASS marker
+    const mate=(gameMode==='field' && !shootIntent(G1.aimX,G1.aimY)) ? passTarget(G1.aimX,G1.aimY) : null;
+    if(mate){   // aiming into the field -> PASS marker on the nearest teammate (any distance)
       const bl=frame%8<5;
       ctx.strokeStyle='rgba(80,180,255,0.45)'; ctx.setLineDash([3,3]); ctx.lineWidth=2;
       ctx.beginPath(); ctx.moveTo(G1.shooterX,G1.shooterY-44); ctx.lineTo(mate.x,mate.y); ctx.stroke(); ctx.setLineDash([]);
       ctx.strokeStyle=bl?C.blue:C.white; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(mate.x,mate.y,13,0,7); ctx.stroke();
-      drawText('PASS', mate.x-textW('PASS',1)/2, mate.y-26, 1, C.blue);
+      const pl='PASS #'+mate.num; drawText(pl, mate.x-textW(pl,1)/2, mate.y-27, 1, C.blue);
     } else {
     const bounceZone=G1.aimY>GOAL_LINE;
     const inNet=G1.aimX>NET1.x&&G1.aimX<NET1.x+NET1.w&&G1.aimY>NET1.y&&G1.aimY<NET1.y+NET1.h;
@@ -1038,7 +1059,7 @@ function g1Draw(){
     ctx.beginPath(); ctx.arc(G1.ripple.x,G1.ripple.y,4+p*22,0,7); ctx.stroke(); ctx.globalAlpha=1; }
   if(G1.ball&&!G1.ball.dead) drawBall(G1.ball.x,G1.ball.y,4);
   drawParts();
-  drawShooter(G1.shooterX,G1.shooterY,G1.phase==='fly'&&frame%4<2);
+  drawShooter(G1.shooterX,G1.shooterY,G1.phase==='fly'&&frame%4<2, G1.carrier?G1.carrier.num:null);
   if(G1.phase==='foul') drawRef(G1.foulT);
   ctx.restore();
   // juice: impact flash tint (fades out)
@@ -1048,8 +1069,8 @@ function g1Draw(){
   const ra=sR.id!==null||keys.aimL||keys.aimR||keys.aimU||keys.aimD;
   drawJoy(LJOY,sL,'MOVE',la,C.blue);
   drawJoy(RJOY,sR,'AIM / RELEASE',ra,C.green);
-  if(sR.id!==null && G1.phase==='aim'){ const overMate=nearestTeammate(G1.aimX,G1.aimY);
-    textCS(overMate?'RELEASE TO PASS':'RELEASE TO SHOOT',H-150,1.4,frame%10<6?(overMate?C.blue:C.green):C.cream,C.black); }
+  if(sR.id!==null && G1.phase==='aim'){ const passing=(gameMode==='field' && !shootIntent(G1.aimX,G1.aimY) && passTarget(G1.aimX,G1.aimY));
+    textCS(passing?'RELEASE TO PASS':'RELEASE TO SHOOT',H-150,1.4,frame%10<6?(passing?C.blue:C.green):C.cream,C.black); }
   // HUD
   ctx.fillStyle=C.panel; ctx.fillRect(0,0,W,26); ctx.fillStyle=C.gold; ctx.fillRect(0,24,W,2);
   ctx.fillStyle='#3a2030'; ctx.fillRect(EXIT_BTN.x,EXIT_BTN.y,EXIT_BTN.w,EXIT_BTN.h); ctx.fillStyle=C.red; ctx.fillRect(EXIT_BTN.x,EXIT_BTN.y,EXIT_BTN.w,2);
@@ -1083,7 +1104,7 @@ function g1Draw(){
     const lines=['MOVE = LEFT STICK   AIM = RIGHT'];
     if(G1.endless){ lines.push('ONLY THE GOLD TARGET SCORES','IT MOVES - CORNERS, CREASE, 5 HOLE','3 MISSES OR 3 SAVES = GAME OVER'); }
     else { lines.push('HIT THE GOLD TARGET (IT MOVES)','CLEAR EVERY ZONE = LEVEL UP'); }
-    if(gameMode==='field') lines.push('RED DEFENDERS CAN BLOCK - WEAVE','AIM AT A BLUE TEAMMATE TO PASS');
+    if(gameMode==='field') lines.push('AIM AT THE CAGE TO SHOOT','AIM AT A TEAMMATE TO PASS','...YOU BECOME THAT PLAYER');
     else lines.push('AIM TURF TO BOUNCE - NO CREASE!');
     tutorial(title,lines); }
 }
@@ -1141,8 +1162,8 @@ function drawToasts(){
   if(toastT>150){ toasts.shift(); toastT=0; }
 }
 const SHARE_URL='https://michaeltholland.github.io/agent-mode/';
-const APP_VERSION='5.0';     // bump every deploy; the update check compares against the live file
-const WHATS_NEW='UNIFIED LOOK ACROSS EVERY SCREEN';   // one-line highlight shown on the update prompt
+const APP_VERSION='5.1';     // bump every deploy; the update check compares against the live file
+const WHATS_NEW='PASS TO ANY TEAMMATE - BECOME THAT PLAYER';   // one-line highlight shown on the update prompt
 let updateReady=false, updateNote='';
 function updateCheck(){
   if(typeof fetch!=='function') return;
